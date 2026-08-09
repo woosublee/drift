@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Drift</string>
+	<key>CFBundleExecutable</key>
+	<string>Drift</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.woosublee.drift</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Drift</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAccessibilityAccessDescription</key>
+	<string>Drift needs Accessibility access to move the pointer.</string>
+	<key>SUPublicEDKey</key>
+	<string>vQJuTRuhD4lF8S1IAw3KzYRclfPe3dOZXPcp03EwIuA=</string>
+</dict>
+</plist>
