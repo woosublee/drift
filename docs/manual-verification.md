@@ -18,7 +18,7 @@ Every item is intentionally unchecked until a user performs it on macOS.
 - [ ] **Compact card layout in Active and Inactive states**  
   Setup: launch `~/Applications/Drift Dev.app` and leave Accessibility in its current user-controlled state.  
   Action: inspect the popover while Inactive, then turn Active on and inspect it again.  
-  Expected: the popover is approximately 410pt wide and uses compact, consistent native macOS spacing; all seven cards (Status, Movement, Clicking, Stop Conditions, Behavior, Accessibility, and Application) remain present in both states; no repeated uppercase section-title row appears; Movement and Clicking require no disclosure click; the runtime name is `Drift Dev`; the status label, dot, shortcut, and Active switch remain legible; Active, Deactivate At, Battery Level, and Launch at Login are conventional native macOS switches, not checkbox-style toggles; Start Moving After, Move Every, Motion Mode, Click Mode, and Deactivate At time controls share one visible width; body text and native switches remain readable; cards, rows, and full-width actions use compact, consistent vertical rhythm.
+  Expected: the popover is approximately 410pt wide and uses compact, consistent native macOS spacing; all nine cards (Status, Smart Motion, Silent Mode, Movement, Clicking, Stop Conditions, Behavior, Accessibility, and Application) remain present in both states; no repeated uppercase section-title row appears; Smart Motion and Silent Mode are independent cards, and Movement and Clicking require no disclosure click; the runtime name is `Drift Dev`; the status label, dot, shortcut, and Active switch remain legible; Active, Smart Motion, Silent Mode, Deactivate At, Battery Level, and Launch at Login are conventional native macOS switches, not checkbox-style toggles; Start Moving After, Move Every, Click Mode, and Deactivate At time controls share one visible width; body text and native switches remain readable; cards, rows, and full-width actions use compact, consistent vertical rhythm.
 
 - [ ] **Development and production identity isolation**
   Setup: build both variants and launch `~/Applications/Drift Dev.app`.
@@ -30,29 +30,24 @@ Every item is intentionally unchecked until a user performs it on macOS.
   Action: turn Active on, then use `Open System Settings`, grant permission, and retry.  
   Expected: Drift Dev requests the initial system prompt when access is first requested; activation is blocked with an explanation until permission is granted; after the dev-specific grant, the app shows `Accessibility Ready`.
 
-- [ ] **Silent movement visibility**  
-  Setup: grant Accessibility, choose Silent motion, leave Click Mode as None, and set a short practical idle delay.  
-  Action: wait without physical input.  
-  Expected: the pointer makes the minimal out-and-back movement without a noticeable visible jump.
+- [ ] **Independent Silent Mode and Smart Motion combinations**<br>
+  Setup: grant Accessibility, leave Click Mode as None, set a short practical idle delay, and use a single connected display.<br>
+  Action: observe at least one idle cycle for each combination: both off, Silent Mode only, Smart Motion only, and both on.<br>
+  Expected: both off uses bounded fixed movement and configured timing; Silent Mode only makes the minimal out-and-back movement without a noticeable visible jump; Smart Motion only follows bounded varied paths with varied timing; both on retains the minimal Silent movement while timing still varies.
 
-- [ ] **Standard movement bounds**  
-  Setup: choose Standard motion with a single connected display.  
-  Action: wait for a movement cycle and repeat several times.  
-  Expected: every destination remains inside the usable display area rather than the menu bar, Dock, or off-screen space.
-
-- [ ] **Natural curved motion**  
-  Setup: choose Natural motion.  
-  Action: wait for multiple cycles.  
-  Expected: movement follows bounded curved paths with varied timing instead of a single repeated straight line.
+- [ ] **Smart Motion click variation**<br>
+  Setup: select a safe click position in a non-destructive app and use a click mode.<br>
+  Action: compare a completed click cycle with Smart Motion off and on.<br>
+  Expected: both settings move to the saved point, click, and return; Smart Motion off uses a fixed path with no hold, while Smart Motion on uses a varied path and a short varied hold before release.
 
 - [ ] **Physical mouse and keyboard idle reset**  
   Setup: activate Drift Dev and wait partway through `Start Moving After`.  
   Action: move the physical mouse, press a key, and wait again.  
   Expected: each real input resets the idle timer; Drift Dev waits the full configured delay before another cycle.
 
-- [ ] **Physical input cancellation during movement**  
-  Setup: use Standard or Natural motion with a short idle delay.  
-  Action: move the physical mouse or press a key while Drift Dev is moving.  
+- [ ] **Physical input cancellation during movement**<br>
+  Setup: turn Silent Mode off, turn Smart Motion on, and use a short idle delay.<br>
+  Action: move the physical mouse or press a key while Drift Dev is moving.<br>
   Expected: the active sequence stops promptly and user control takes priority.
 
 - [ ] **Left, Right, Alternating click**  
@@ -115,10 +110,10 @@ Every item is intentionally unchecked until a user performs it on macOS.
   Action: compare the popover width and vertical rhythm across light, dark, and short-screen conditions, then scroll from the Status card to the Application card.
   Expected: the width and vertical density remain compact and consistent; adaptive card surfaces, switch tracks/thumbs, and semantic states remain legible in light and dark appearance; enabled Stop Conditions add only their actual controls with no reserved placeholder space; no grid row, control, action, or larger-text content clips or overlaps; the popover stays fully on-screen; vertical scrolling reaches the Application footer, including `Check for Updates…`, `Quit Drift Dev`, and `Drift Dev 0.1.0`.
 
-- [ ] **Aligned controls with keyboard and VoiceOver**  
-  Setup: open Drift Dev with Full Keyboard Access and VoiceOver available; do not change Accessibility approval unless intentionally testing that existing checklist item.  
-  Action: traverse Active, Movement, Clicking, Deactivate At, Battery Level, Launch at Login, shortcut controls, and Application actions using Tab/Shift-Tab and VoiceOver; press Space on each switch in a safe state.  
-  Expected: each Boolean control is announced once as a labelled native switch with its current state; no duplicate static-label stop precedes the switch; Battery Threshold is announced once as an adjustable control with the current percentage; ordinary row labels remain available; focus order follows the visual card order; rows grow for larger text without clipping or overlap.
+- [ ] **Aligned controls with keyboard and VoiceOver**<br>
+  Setup: open Drift Dev with Full Keyboard Access and VoiceOver available; do not change Accessibility approval unless intentionally testing that existing checklist item.<br>
+  Action: traverse Active, Smart Motion, Silent Mode, Movement, Clicking, Deactivate At, Battery Level, Launch at Login, shortcut controls, and Application actions using Tab/Shift-Tab and VoiceOver; press Space on each switch in a safe state.<br>
+  Expected: each Boolean control is announced once as a labelled native switch with its current state; Smart Motion and Silent Mode are announced as separate controls; no duplicate static-label stop precedes the switch; Battery Threshold is announced once as an adjustable control with the current percentage; ordinary row labels remain available; focus order follows the visual card order; rows grow for larger text without clipping or overlap.
 
 - [ ] **Clean quit with no residual process**  
   Setup: activate Drift Dev, open the popover, and begin a selectable operation if practical.  

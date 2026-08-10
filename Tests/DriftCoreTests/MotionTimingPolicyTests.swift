@@ -24,20 +24,40 @@ final class StubRandomSource: DriftRandomSource {
 }
 
 final class MotionTimingPolicyTests: XCTestCase {
-    func testNaturalTimingUsesConfiguredVariation() {
+    func testSmartMotionTimingUsesConfiguredVariation() {
         let random = StubRandomSource(doubles: [58, 12])
         let policy = MotionTimingPolicy()
         var settings = DriftSettings.default
-        settings.motionMode = .natural
+        settings.isSilentModeEnabled = false
+        settings.isSmartMotionEnabled = true
 
         XCTAssertEqual(policy.initialDelay(settings: settings, random: random), 58)
         XCTAssertEqual(policy.repeatDelay(settings: settings, random: random), 12)
     }
 
+    func testSilentAndSmartMotionStillUseTimingVariation() {
+        let random = StubRandomSource(doubles: [58, 12])
+        let policy = MotionTimingPolicy()
+        var settings = DriftSettings.default
+        settings.isSmartMotionEnabled = true
+
+        XCTAssertEqual(policy.initialDelay(settings: settings, random: random), 58)
+        XCTAssertEqual(policy.repeatDelay(settings: settings, random: random), 12)
+    }
+
+    func testDisabledSmartMotionUsesConfiguredDelaysWithoutVariation() {
+        let random = StubRandomSource(doubles: [58, 12])
+        let policy = MotionTimingPolicy()
+        let settings = DriftSettings.default
+
+        XCTAssertEqual(policy.initialDelay(settings: settings, random: random), 60)
+        XCTAssertEqual(policy.repeatDelay(settings: settings, random: random), 10)
+    }
+
     func testContinuousRepeatDelayIsNotRandomized() {
         let random = StubRandomSource(doubles: [99])
         var settings = DriftSettings.default
-        settings.motionMode = .natural
+        settings.isSmartMotionEnabled = true
         settings.repeatInterval = .continuous
 
         XCTAssertEqual(MotionTimingPolicy().repeatDelay(settings: settings, random: random), 0.1)

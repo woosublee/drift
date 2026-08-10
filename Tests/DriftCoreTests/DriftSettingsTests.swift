@@ -5,9 +5,11 @@ final class DriftSettingsTests: XCTestCase {
     func testDefaultSettingsMatchProductDecisions() {
         let settings = DriftSettings.default
 
+        XCTAssertEqual(settings.schemaVersion, 2)
         XCTAssertEqual(settings.startDelay, .oneMinute)
         XCTAssertEqual(settings.repeatInterval, .tenSeconds)
-        XCTAssertEqual(settings.motionMode, .silent)
+        XCTAssertTrue(settings.isSilentModeEnabled)
+        XCTAssertFalse(settings.isSmartMotionEnabled)
         XCTAssertEqual(settings.clickMode, .none)
         XCTAssertNil(settings.clickPosition)
         XCTAssertFalse(settings.dailyStop.isEnabled)
@@ -19,12 +21,50 @@ final class DriftSettingsTests: XCTestCase {
 
     func testSettingsRoundTrip() throws {
         var settings = DriftSettings.default
-        settings.motionMode = .natural
+        settings.isSilentModeEnabled = false
+        settings.isSmartMotionEnabled = true
         settings.repeatInterval = .thirtySeconds
 
-        let restored = DriftSettings.decodeSafely(from: try settings.encode())
+        let encoded = try settings.encode()
+        let restored = DriftSettings.decodeSafely(from: encoded)
 
         XCTAssertEqual(restored, settings)
+        XCTAssertFalse(try XCTUnwrap(String(data: encoded, encoding: .utf8)).contains("motionMode"))
+    }
+
+    func testV1MotionModesMigrateToIndependentSettings() {
+        let cases: [(String, Bool, Bool)] = [
+            ("silent", true, false),
+            ("standard", false, false),
+            ("natural", false, true)
+        ]
+
+        for (legacyMode, expectedSilent, expectedSmart) in cases {
+            let json = #"{"schemaVersion":1,"motionMode":"\#(legacyMode)"}"#.data(using: .utf8)!
+            let restored = DriftSettings.decodeSafely(from: json)
+
+            XCTAssertEqual(restored.schemaVersion, 2)
+            XCTAssertEqual(restored.isSilentModeEnabled, expectedSilent)
+            XCTAssertEqual(restored.isSmartMotionEnabled, expectedSmart)
+        }
+    }
+
+    func testV2MotionSettingsTakePrecedenceOverLegacyMode() {
+        let json = #"{"schemaVersion":2,"isSilentModeEnabled":true,"isSmartMotionEnabled":true,"motionMode":"standard"}"#.data(using: .utf8)!
+
+        let restored = DriftSettings.decodeSafely(from: json)
+
+        XCTAssertTrue(restored.isSilentModeEnabled)
+        XCTAssertTrue(restored.isSmartMotionEnabled)
+    }
+
+    func testMissingV2MotionSiblingFallsBackToItsDefault() {
+        let json = #"{"schemaVersion":2,"isSmartMotionEnabled":true}"#.data(using: .utf8)!
+
+        let restored = DriftSettings.decodeSafely(from: json)
+
+        XCTAssertTrue(restored.isSilentModeEnabled)
+        XCTAssertTrue(restored.isSmartMotionEnabled)
     }
 
     func testClearedShortcutRoundTripsAsExplicitNil() throws {
@@ -83,13 +123,14 @@ final class DriftSettingsTests: XCTestCase {
         XCTAssertEqual(restored.toggleShortcut?.modifiers, DriftSettings.default.toggleShortcut?.modifiers)
     }
 
-    func testUnknownEnumFallsBackWithoutDiscardingOtherFields() {
+    func testUnknownLegacyMotionModeFallsBackWithoutDiscardingOtherFields() {
         let json = #"{"schemaVersion":1,"startDelay":"threeMinutes","repeatInterval":"tenSeconds","motionMode":"futureMode","launchAtLogin":true}"#.data(using: .utf8)!
 
         let restored = DriftSettings.decodeSafely(from: json)
 
         XCTAssertEqual(restored.startDelay, .threeMinutes)
-        XCTAssertEqual(restored.motionMode, .silent)
+        XCTAssertTrue(restored.isSilentModeEnabled)
+        XCTAssertFalse(restored.isSmartMotionEnabled)
         XCTAssertTrue(restored.launchAtLogin)
     }
 

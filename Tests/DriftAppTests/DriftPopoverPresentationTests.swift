@@ -3,10 +3,11 @@ import DriftCore
 @testable import DriftApp
 
 final class DriftPopoverPresentationTests: XCTestCase {
-    func testSectionOrderMatchesApprovedCardStack() {
+    func testSectionOrderPlacesIndependentMotionCardsBeforeMovementSettings() {
         XCTAssertEqual(
             DriftPopoverSection.allCases,
-            [.status, .movement, .clicking, .stopConditions, .behavior, .accessibility, .application]
+            [.status, .smartMotion, .silentMode, .movement, .clicking, .stopConditions,
+             .behavior, .accessibility, .application]
         )
     }
 
@@ -171,8 +172,12 @@ final class DriftPopoverPresentationTests: XCTestCase {
             "Move Every"
         )
         XCTAssertEqual(
-            DriftPopoverPresentation.motionModeAccessibilityLabel,
-            "Motion Mode"
+            DriftPopoverPresentation.smartMotionAccessibilityLabel,
+            "Smart Motion"
+        )
+        XCTAssertEqual(
+            DriftPopoverPresentation.silentModeAccessibilityLabel,
+            "Silent Mode"
         )
         XCTAssertEqual(
             DriftPopoverPresentation.clickModeAccessibilityLabel,

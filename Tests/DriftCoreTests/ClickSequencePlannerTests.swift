@@ -9,7 +9,7 @@ final class ClickSequencePlannerTests: XCTestCase {
 
     func testNoneDoesNotCreateClickSequence() {
         let result = ClickSequencePlanner().makePlan(
-            motionMode: .silent,
+            isSmartMotionEnabled: false,
             clickMode: .none,
             nextAlternatingButton: .left,
             start: start,
@@ -21,50 +21,55 @@ final class ClickSequencePlannerTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    func testSilentClickUsesStandardOutboundAndReturnsToOriginalPosition() throws {
-        let plan = try XCTUnwrap(ClickSequencePlanner().makePlan(
-            motionMode: .silent,
-            clickMode: .left,
-            nextAlternatingButton: .left,
-            start: start,
-            clickPosition: click,
-            bounds: bounds,
-            random: ClickSequenceStubRandomSource()
-        ))
+    func testFixedClickUsesStandardOutboundAndReturnsToOriginalPosition() throws {
+        let plan = try makePlan(isSmartMotionEnabled: false, clickMode: .left)
 
         XCTAssertEqual(plan.button, .left)
+        XCTAssertEqual(plan.outbound.samples.count, 6)
         XCTAssertEqual(plan.outbound.samples.last?.point, click)
+        XCTAssertEqual(plan.returnPlan.samples.count, 6)
         XCTAssertEqual(plan.returnPlan.samples.last?.point, start)
         XCTAssertEqual(plan.holdMicroseconds, 0)
     }
 
-    func testNaturalClickUsesRandomHold() throws {
-        let plan = try XCTUnwrap(ClickSequencePlanner().makePlan(
-            motionMode: .natural,
+    func testSmartMotionClickUsesNaturalPathAndRandomHold() throws {
+        let plan = try makePlan(
+            isSmartMotionEnabled: true,
             clickMode: .right,
-            nextAlternatingButton: .left,
-            start: start,
-            clickPosition: click,
-            bounds: bounds,
-            random: ClickSequenceStubRandomSource(integers: [100_000])
-        ))
+            integers: [100_000]
+        )
 
         XCTAssertEqual(plan.button, .right)
+        XCTAssertEqual(plan.outbound.samples.count, 42)
+        XCTAssertEqual(plan.returnPlan.samples.count, 42)
         XCTAssertEqual(plan.holdMicroseconds, 100_000)
     }
 
     func testAlternatingUsesProvidedNextButton() throws {
-        let plan = try XCTUnwrap(ClickSequencePlanner().makePlan(
-            motionMode: .standard,
+        let plan = try makePlan(
+            isSmartMotionEnabled: false,
             clickMode: .alternating,
-            nextAlternatingButton: .right,
+            nextAlternatingButton: .right
+        )
+
+        XCTAssertEqual(plan.button, .right)
+    }
+
+    private func makePlan(
+        isSmartMotionEnabled: Bool,
+        clickMode: ClickMode,
+        nextAlternatingButton: MouseButton = .left,
+        integers: [Int] = []
+    ) throws -> ClickSequencePlan {
+        try XCTUnwrap(ClickSequencePlanner().makePlan(
+            isSmartMotionEnabled: isSmartMotionEnabled,
+            clickMode: clickMode,
+            nextAlternatingButton: nextAlternatingButton,
             start: start,
             clickPosition: click,
             bounds: bounds,
-            random: ClickSequenceStubRandomSource()
+            random: ClickSequenceStubRandomSource(integers: integers)
         ))
-
-        XCTAssertEqual(plan.button, .right)
     }
 }
 

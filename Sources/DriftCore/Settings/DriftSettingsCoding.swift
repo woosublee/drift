@@ -61,11 +61,19 @@ private enum DecodedShortcut {
     case invalid
 }
 
+private enum LegacyMotionMode: String, Decodable {
+    case silent
+    case standard
+    case natural
+}
+
 private struct DriftSettingsPayload: Decodable {
     var schemaVersion: Int?
     var startDelay: StartDelay?
     var repeatInterval: RepeatInterval?
-    var motionMode: MotionMode?
+    var isSilentModeEnabled: Bool?
+    var isSmartMotionEnabled: Bool?
+    var motionMode: LegacyMotionMode?
     var clickMode: ClickMode?
     var clickPosition: ClickPosition?
     var dailyStop: SafeDailyStopPayload?
@@ -77,6 +85,8 @@ private struct DriftSettingsPayload: Decodable {
         case schemaVersion
         case startDelay
         case repeatInterval
+        case isSilentModeEnabled
+        case isSmartMotionEnabled
         case motionMode
         case clickMode
         case clickPosition
@@ -91,7 +101,9 @@ private struct DriftSettingsPayload: Decodable {
         schemaVersion = try? container.decode(Int.self, forKey: .schemaVersion)
         startDelay = try? container.decode(StartDelay.self, forKey: .startDelay)
         repeatInterval = try? container.decode(RepeatInterval.self, forKey: .repeatInterval)
-        motionMode = try? container.decode(MotionMode.self, forKey: .motionMode)
+        isSilentModeEnabled = try? container.decode(Bool.self, forKey: .isSilentModeEnabled)
+        isSmartMotionEnabled = try? container.decode(Bool.self, forKey: .isSmartMotionEnabled)
+        motionMode = try? container.decode(LegacyMotionMode.self, forKey: .motionMode)
         clickMode = try? container.decode(ClickMode.self, forKey: .clickMode)
         clickPosition = try? container.decode(ClickPosition.self, forKey: .clickPosition)
         dailyStop = try? container.decode(SafeDailyStopPayload.self, forKey: .dailyStop)
@@ -117,7 +129,8 @@ private struct DriftSettingsEncodingPayload: Encodable {
         case schemaVersion
         case startDelay
         case repeatInterval
-        case motionMode
+        case isSilentModeEnabled
+        case isSmartMotionEnabled
         case clickMode
         case clickPosition
         case dailyStop
@@ -131,7 +144,8 @@ private struct DriftSettingsEncodingPayload: Encodable {
         try container.encode(settings.schemaVersion, forKey: .schemaVersion)
         try container.encode(settings.startDelay, forKey: .startDelay)
         try container.encode(settings.repeatInterval, forKey: .repeatInterval)
-        try container.encode(settings.motionMode, forKey: .motionMode)
+        try container.encode(settings.isSilentModeEnabled, forKey: .isSilentModeEnabled)
+        try container.encode(settings.isSmartMotionEnabled, forKey: .isSmartMotionEnabled)
         try container.encode(settings.clickMode, forKey: .clickMode)
         try container.encodeIfPresent(settings.clickPosition, forKey: .clickPosition)
         try container.encode(settings.dailyStop, forKey: .dailyStop)
@@ -157,11 +171,34 @@ public extension DriftSettings {
 
         let defaults = DriftSettings.default
         var result = defaults
-        result.schemaVersion = 1
+        result.schemaVersion = 2
         result.startDelay = payload.startDelay ?? defaults.startDelay
         result.repeatInterval = payload.repeatInterval ?? defaults.repeatInterval
-        result.motionMode = payload.motionMode ?? defaults.motionMode
         result.clickPosition = payload.clickPosition
+
+        if let isSilentModeEnabled = payload.isSilentModeEnabled,
+           let isSmartMotionEnabled = payload.isSmartMotionEnabled {
+            result.isSilentModeEnabled = isSilentModeEnabled
+            result.isSmartMotionEnabled = isSmartMotionEnabled
+        } else if payload.isSilentModeEnabled != nil || payload.isSmartMotionEnabled != nil {
+            result.isSilentModeEnabled = payload.isSilentModeEnabled ?? defaults.isSilentModeEnabled
+            result.isSmartMotionEnabled = payload.isSmartMotionEnabled ?? defaults.isSmartMotionEnabled
+        } else {
+            switch payload.motionMode {
+            case .silent?:
+                result.isSilentModeEnabled = true
+                result.isSmartMotionEnabled = false
+            case .standard?:
+                result.isSilentModeEnabled = false
+                result.isSmartMotionEnabled = false
+            case .natural?:
+                result.isSilentModeEnabled = false
+                result.isSmartMotionEnabled = true
+            case nil:
+                result.isSilentModeEnabled = defaults.isSilentModeEnabled
+                result.isSmartMotionEnabled = defaults.isSmartMotionEnabled
+            }
+        }
 
         if let dailyStop = payload.dailyStop {
             result.dailyStop.isEnabled = dailyStop.isEnabled ?? defaults.dailyStop.isEnabled

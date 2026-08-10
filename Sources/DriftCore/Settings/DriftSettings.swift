@@ -1,11 +1,5 @@
 import Foundation
 
-public enum MotionMode: String, Codable, CaseIterable, Sendable {
-    case silent
-    case standard
-    case natural
-}
-
 public enum ClickMode: String, Codable, CaseIterable, Sendable {
     case none
     case left
@@ -131,7 +125,8 @@ public struct DriftSettings: Equatable, Sendable {
     public var schemaVersion: Int
     public var startDelay: StartDelay
     public var repeatInterval: RepeatInterval
-    public var motionMode: MotionMode
+    public var isSilentModeEnabled: Bool
+    public var isSmartMotionEnabled: Bool
     public private(set) var clickMode: ClickMode
     public var clickPosition: ClickPosition?
     public var dailyStop: DailyStopSettings
@@ -143,7 +138,8 @@ public struct DriftSettings: Equatable, Sendable {
         schemaVersion: Int,
         startDelay: StartDelay,
         repeatInterval: RepeatInterval,
-        motionMode: MotionMode,
+        isSilentModeEnabled: Bool,
+        isSmartMotionEnabled: Bool,
         clickMode: ClickMode,
         clickPosition: ClickPosition?,
         dailyStop: DailyStopSettings,
@@ -154,7 +150,8 @@ public struct DriftSettings: Equatable, Sendable {
         self.schemaVersion = schemaVersion
         self.startDelay = startDelay
         self.repeatInterval = repeatInterval
-        self.motionMode = motionMode
+        self.isSilentModeEnabled = isSilentModeEnabled
+        self.isSmartMotionEnabled = isSmartMotionEnabled
         self.clickMode = clickMode
         self.clickPosition = clickPosition
         self.dailyStop = dailyStop
@@ -164,10 +161,11 @@ public struct DriftSettings: Equatable, Sendable {
     }
 
     public static let `default` = DriftSettings(
-        schemaVersion: 1,
+        schemaVersion: 2,
         startDelay: .oneMinute,
         repeatInterval: .tenSeconds,
-        motionMode: .silent,
+        isSilentModeEnabled: true,
+        isSmartMotionEnabled: false,
         clickMode: .none,
         clickPosition: nil,
         dailyStop: .default,

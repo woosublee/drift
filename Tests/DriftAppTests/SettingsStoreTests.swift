@@ -10,11 +10,12 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(UserDefaultsSettingsStore(defaults: defaults).loadSettings(), .default)
     }
 
-    func testSettingsV1RoundTrips() throws {
+    func testSettingsV2RoundTrips() throws {
         let defaults = makeDefaults()
         defer { clear(defaults) }
         var settings = DriftSettings.default
-        settings.motionMode = .natural
+        settings.isSilentModeEnabled = false
+        settings.isSmartMotionEnabled = true
         let store = UserDefaultsSettingsStore(defaults: defaults)
 
         try store.saveSettings(settings)
@@ -22,12 +23,14 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.loadSettings(), settings)
     }
 
-    func testMalformedSettingsUsesSafeDecode() {
+    func testMalformedLegacyMotionModeUsesNewDefaults() {
         let defaults = makeDefaults()
         defer { clear(defaults) }
         defaults.set(#"{"motionMode":"future"}"#.data(using: .utf8), forKey: "settings.v1")
 
-        XCTAssertEqual(UserDefaultsSettingsStore(defaults: defaults).loadSettings().motionMode, .silent)
+        let settings = UserDefaultsSettingsStore(defaults: defaults).loadSettings()
+        XCTAssertTrue(settings.isSilentModeEnabled)
+        XCTAssertFalse(settings.isSmartMotionEnabled)
     }
 
     func testMissingRuntimeLaunchMarkerReturnsNilIntent() {

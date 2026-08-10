@@ -4,20 +4,20 @@ public struct MotionPathGenerator {
     public init() {}
 
     public func makePlan(
-        mode: MotionMode,
+        isSilentModeEnabled: Bool,
+        isSmartMotionEnabled: Bool,
         start: CGPoint,
         destination: CGPoint,
         bounds: CGRect,
         random: DriftRandomSource
     ) -> MotionPlan {
-        switch mode {
-        case .silent:
+        if isSilentModeEnabled {
             return silentPlan(start: start)
-        case .standard:
-            return standardPlan(start: start, destination: destination, bounds: bounds)
-        case .natural:
+        }
+        if isSmartMotionEnabled {
             return naturalPlan(start: start, destination: destination, bounds: bounds, random: random)
         }
+        return standardPlan(start: start, destination: destination, bounds: bounds)
     }
 
     private func silentPlan(start: CGPoint) -> MotionPlan {

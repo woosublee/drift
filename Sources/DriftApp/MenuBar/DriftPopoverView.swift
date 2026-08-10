@@ -47,10 +47,19 @@ struct DriftPopoverView: View {
                     isActive: activeBinding
                 )
 
+                MotionToggleSettingsCard(
+                    title: DriftPopoverPresentation.smartMotionAccessibilityLabel,
+                    isOn: smartMotionBinding
+                )
+
+                MotionToggleSettingsCard(
+                    title: DriftPopoverPresentation.silentModeAccessibilityLabel,
+                    isOn: silentModeBinding
+                )
+
                 MovementSettingsCard(
                     startDelay: startDelayBinding,
-                    repeatInterval: repeatIntervalBinding,
-                    motionMode: motionModeBinding
+                    repeatInterval: repeatIntervalBinding
                 )
 
                 ClickingSettingsCard(
@@ -130,8 +139,18 @@ struct DriftPopoverView: View {
         Binding(get: { model.settings.repeatInterval }, set: { model.setRepeatInterval($0) })
     }
 
-    private var motionModeBinding: Binding<MotionMode> {
-        Binding(get: { model.settings.motionMode }, set: { model.setMotionMode($0) })
+    private var smartMotionBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.isSmartMotionEnabled },
+            set: { model.setSmartMotionEnabled($0) }
+        )
+    }
+
+    private var silentModeBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.isSilentModeEnabled },
+            set: { model.setSilentModeEnabled($0) }
+        )
     }
 
     private var clickModeBinding: Binding<ClickMode> {

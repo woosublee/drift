@@ -3,6 +3,8 @@ import DriftCore
 
 public enum DriftPopoverSection: CaseIterable, Equatable {
     case status
+    case smartMotion
+    case silentMode
     case movement
     case clicking
     case stopConditions
@@ -133,7 +135,8 @@ public enum DriftPopoverPresentation {
 
     public static let startMovingAfterAccessibilityLabel = "Start Moving After"
     public static let moveEveryAccessibilityLabel = "Move Every"
-    public static let motionModeAccessibilityLabel = "Motion Mode"
+    public static let smartMotionAccessibilityLabel = "Smart Motion"
+    public static let silentModeAccessibilityLabel = "Silent Mode"
     public static let clickModeAccessibilityLabel = "Click Mode"
     public static let deactivateAtTimeAccessibilityLabel = "Deactivate At Time"
 
@@ -227,10 +230,6 @@ extension RepeatInterval {
         case .tenMinutes: "10 min"
         }
     }
-}
-
-extension MotionMode {
-    var popoverLabel: String { rawValue.capitalized }
 }
 
 extension ClickMode {

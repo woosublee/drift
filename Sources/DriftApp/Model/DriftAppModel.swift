@@ -163,8 +163,13 @@ public final class DriftAppModel: ObservableObject {
         toggleActive(showHUD: false)
     }
 
-    public func setMotionMode(_ mode: MotionMode) {
-        settings.motionMode = mode
+    public func setSilentModeEnabled(_ enabled: Bool) {
+        settings.isSilentModeEnabled = enabled
+        persistSettings()
+    }
+
+    public func setSmartMotionEnabled(_ enabled: Bool) {
+        settings.isSmartMotionEnabled = enabled
         persistSettings()
     }
 
@@ -316,7 +321,8 @@ public final class DriftAppModel: ObservableObject {
         }
         let destination = destinationPicker.pick(in: bounds, random: random)
         let plan = pathGenerator.makePlan(
-            mode: settings.motionMode,
+            isSilentModeEnabled: settings.isSilentModeEnabled,
+            isSmartMotionEnabled: settings.isSmartMotionEnabled,
             start: start,
             destination: destination,
             bounds: bounds,
@@ -377,7 +383,7 @@ public final class DriftAppModel: ObservableObject {
         }
         let bounds = frames.dropFirst().reduce(firstFrame) { $0.union($1) }
         guard let sequence = clickPlanner.makePlan(
-            motionMode: settings.motionMode,
+            isSmartMotionEnabled: settings.isSmartMotionEnabled,
             clickMode: settings.clickMode,
             nextAlternatingButton: runtimeStateStore.loadNextAlternatingButton(),
             start: start,

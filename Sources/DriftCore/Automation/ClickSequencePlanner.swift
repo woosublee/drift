@@ -8,7 +8,7 @@ public struct ClickSequencePlanner {
     }
 
     public func makePlan(
-        motionMode: MotionMode,
+        isSmartMotionEnabled: Bool,
         clickMode: ClickMode,
         nextAlternatingButton: MouseButton,
         start: CGPoint,
@@ -28,19 +28,20 @@ public struct ClickSequencePlanner {
             button = nextAlternatingButton
         }
 
-        let pathMode: MotionMode = motionMode == .silent ? .standard : motionMode
-        let holdMicroseconds: UInt32 = motionMode == .natural
+        let holdMicroseconds: UInt32 = isSmartMotionEnabled
             ? UInt32(random.int(in: 50_000...200_000))
             : 0
         let outbound = pathGenerator.makePlan(
-            mode: pathMode,
+            isSilentModeEnabled: false,
+            isSmartMotionEnabled: isSmartMotionEnabled,
             start: start,
             destination: clickPosition,
             bounds: bounds,
             random: random
         )
         let returnPlan = pathGenerator.makePlan(
-            mode: pathMode,
+            isSilentModeEnabled: false,
+            isSmartMotionEnabled: isSmartMotionEnabled,
             start: clickPosition,
             destination: start,
             bounds: bounds,
@@ -54,4 +55,5 @@ public struct ClickSequencePlanner {
             returnPlan: returnPlan
         )
     }
+
 }
