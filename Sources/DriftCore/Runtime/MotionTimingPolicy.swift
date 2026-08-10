@@ -5,13 +5,13 @@ public struct MotionTimingPolicy {
 
     public func initialDelay(settings: DriftSettings, random: DriftRandomSource) -> TimeInterval {
         let base = settings.startDelay.seconds
-        guard settings.motionMode == .natural else { return base }
+        guard settings.isSmartMotionEnabled else { return base }
         return random.double(in: max(1, base - 5)...(base + 5))
     }
 
     public func repeatDelay(settings: DriftSettings, random: DriftRandomSource) -> TimeInterval {
         let base = settings.repeatInterval.seconds
-        guard settings.motionMode == .natural, settings.repeatInterval != .continuous else { return base }
+        guard settings.isSmartMotionEnabled, settings.repeatInterval != .continuous else { return base }
         switch settings.repeatInterval {
         case .fiveSeconds:
             return random.double(in: 4...5)

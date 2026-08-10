@@ -2,10 +2,20 @@ import AppKit
 import SwiftUI
 import DriftCore
 
+struct MotionToggleSettingsCard: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        DriftSettingsCard {
+            DriftToggleSettingRow(title, isOn: $isOn)
+        }
+    }
+}
+
 struct MovementSettingsCard: View {
     @Binding var startDelay: StartDelay
     @Binding var repeatInterval: RepeatInterval
-    @Binding var motionMode: MotionMode
 
     var body: some View {
         DriftSettingsCard {
@@ -28,17 +38,6 @@ struct MovementSettingsCard: View {
                         label: { $0.popoverLabel },
                         accessibilityLabel:
                             DriftPopoverPresentation.moveEveryAccessibilityLabel
-                    )
-                    .driftMenuControlWidth()
-                }
-                Divider()
-                DriftSettingRow("Motion Mode") {
-                    DriftMenuPicker(
-                        selection: $motionMode,
-                        options: MotionMode.allCases,
-                        label: { $0.popoverLabel },
-                        accessibilityLabel:
-                            DriftPopoverPresentation.motionModeAccessibilityLabel
                     )
                     .driftMenuControlWidth()
                 }

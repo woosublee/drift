@@ -125,14 +125,51 @@ final class DriftAppModelTests: XCTestCase {
         XCTAssertEqual(fixture.model.phase, .waitingForIdle)
     }
 
-    func testChangingMotionModePersistsSettings() {
+    func testChangingSilentModePersistsWithoutChangingSmartMotion() {
         let fixture = makeFixture(activeIntent: false)
         fixture.model.start()
 
-        fixture.model.setMotionMode(.natural)
+        fixture.model.setSilentModeEnabled(false)
 
-        XCTAssertEqual(fixture.settingsStore.savedSettings?.motionMode, .natural)
-        XCTAssertEqual(fixture.model.settings.motionMode, .natural)
+        XCTAssertFalse(fixture.model.settings.isSilentModeEnabled)
+        XCTAssertFalse(fixture.model.settings.isSmartMotionEnabled)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.isSilentModeEnabled, false)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.isSmartMotionEnabled, false)
+    }
+
+    func testChangingSmartMotionPersistsWithoutChangingSilentMode() {
+        let fixture = makeFixture(activeIntent: false)
+        fixture.model.start()
+
+        fixture.model.setSmartMotionEnabled(true)
+
+        XCTAssertTrue(fixture.model.settings.isSilentModeEnabled)
+        XCTAssertTrue(fixture.model.settings.isSmartMotionEnabled)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.isSilentModeEnabled, true)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.isSmartMotionEnabled, true)
+    }
+
+    func testDisabledSilentModeAndEnabledSmartMotionUseNaturalIdlePath() {
+        let fixture = makeFixture(activeIntent: true)
+        fixture.model.start()
+        fixture.model.setSilentModeEnabled(false)
+        fixture.model.setSmartMotionEnabled(true)
+
+        fixture.model.handleTick(at: now.addingTimeInterval(60))
+
+        XCTAssertEqual(fixture.motionExecutor.plans.count, 1)
+        XCTAssertGreaterThan(fixture.motionExecutor.plans[0].samples.count, 6)
+    }
+
+    func testSilentModeTakesPrecedenceOverSmartMotionForIdlePath() {
+        let fixture = makeFixture(activeIntent: true)
+        fixture.model.start()
+        fixture.model.setSmartMotionEnabled(true)
+
+        fixture.model.handleTick(at: now.addingTimeInterval(60))
+
+        XCTAssertEqual(fixture.motionExecutor.plans.count, 1)
+        XCTAssertEqual(fixture.motionExecutor.plans[0].samples.count, 2)
     }
 
     func testOpeningAccessibilitySettingsRequestsAccessBeforeOpeningSettings() {
