@@ -1,0 +1,146 @@
+name: Self-signed Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the already-selected canonical tag
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: drift-stable-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      CERTIFICATE_BASE64: ${{ secrets.DRIFT_CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.DRIFT_CERTIFICATE_PASSWORD }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      KEYCHAIN_PATH: ${{ runner.temp }}/drift-release.keychain-db
+    steps:
+      - name: Check out the selected ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Resolve release and publish mode
+        id: release
+        shell: zsh
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="$(scripts/resolve-release-version.sh tag)"
+          RELEASE_VERSION="$(scripts/resolve-release-version.sh version)"
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            publish_requested=true
+          elif [[ "${{ inputs.publish }}" == "true" ]]; then
+            publish_requested=true
+          else
+            publish_requested=false
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$publish_requested" == true ]]; then
+            [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || {
+              print -u2 -r -- "ERROR: manual publish must run on refs/tags/$RELEASE_TAG"
+              exit 1
+            }
+            [[ "$(git rev-list -n 1 "$RELEASE_TAG")" == "$GITHUB_SHA" ]] || {
+              print -u2 -r -- "ERROR: manual publish tag must resolve to GITHUB_SHA"
+              exit 1
+            }
+          fi
+
+          print -r -- "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          print -r -- "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          print -r -- "publish_requested=$publish_requested" >> "$GITHUB_OUTPUT"
+
+      - name: Import temporary signing identity
+        shell: zsh
+        run: |
+          set -euo pipefail
+          [[ -n "$CERTIFICATE_BASE64" ]] || { print -u2 -r -- 'DRIFT_CERTIFICATE_BASE64 secret is required'; exit 1; }
+          [[ -n "$CERTIFICATE_PASSWORD" ]] || { print -u2 -r -- 'DRIFT_CERTIFICATE_PASSWORD secret is required'; exit 1; }
+          [[ -n "$SPARKLE_PRIVATE_KEY" ]] || { print -u2 -r -- 'SPARKLE_PRIVATE_KEY secret is required'; exit 1; }
+          print -r -- "::add-mask::$CERTIFICATE_BASE64"
+          print -r -- "::add-mask::$CERTIFICATE_PASSWORD"
+          print -r -- "::add-mask::$SPARKLE_PRIVATE_KEY"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          print -r -- "::add-mask::$KEYCHAIN_PASSWORD"
+
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/drift-certificate.p12"
+          ORIGINAL_DEFAULT_KEYCHAIN="$(security default-keychain -d user | tr -d '\"')"
+          ORIGINAL_KEYCHAINS="$(security list-keychains -d user | tr -d '\"')"
+          printf 'ORIGINAL_DEFAULT_KEYCHAIN=%s\n' "$ORIGINAL_DEFAULT_KEYCHAIN" >> "$GITHUB_ENV"
+          printf 'ORIGINAL_KEYCHAINS=%s\n' "$ORIGINAL_KEYCHAINS" >> "$GITHUB_ENV"
+          printf 'KEYCHAIN_PASSWORD=%s\n' "$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/drift-certificate.p12" \
+            -P "$CERTIFICATE_PASSWORD" -t cert -f pkcs12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $ORIGINAL_KEYCHAINS
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Test and verify release artifacts
+        shell: zsh
+        run: |
+          set -euo pipefail
+          swift test
+          scripts/check-release-monotonic.sh --repository "$GITHUB_REPOSITORY" --output build/release/previous-release.json
+          make verify-release-artifacts CODESIGN_IDENTITY=Drift
+          scripts/check-release-monotonic.sh --repository "$GITHUB_REPOSITORY" --output build/release/previous-release.json
+
+      - name: Upload verified release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-${{ steps.release.outputs.release_version }}-verified
+          if-no-files-found: error
+          path: |
+            build/release/Drift-${{ steps.release.outputs.release_version }}.dmg
+            build/release/appcast.xml
+            build/release/release-provenance.json
+
+      - name: Publish GitHub Release
+        if: steps.release.outputs.publish_requested == 'true'
+        shell: zsh
+        run: |
+          set -euo pipefail
+          scripts/publish-github-release.sh \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "${{ steps.release.outputs.release_tag }}" \
+            --notes release/notes.md
+
+      - name: Verify published GitHub Release
+        if: steps.release.outputs.publish_requested == 'true'
+        shell: zsh
+        run: |
+          set -euo pipefail
+          scripts/verify-published-release.sh \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "${{ steps.release.outputs.release_tag }}"
+
+      - name: Remove temporary signing identity
+        if: always()
+        shell: zsh
+        run: |
+          set +e
+          if [[ -n "${ORIGINAL_KEYCHAINS:-}" ]]; then
+            security list-keychains -d user -s $ORIGINAL_KEYCHAINS
+          fi
+          if [[ -n "${ORIGINAL_DEFAULT_KEYCHAIN:-}" ]]; then
+            security default-keychain -d user -s "$ORIGINAL_DEFAULT_KEYCHAIN"
+          fi
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/drift-certificate.p12"
