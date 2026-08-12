@@ -33,6 +33,21 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertFalse(workflow.contains("--clobber"))
     }
 
+    // Break caught: publication refers to release notes that do not exist, making a tagged publish fail after artifact verification.
+    func testWorkflowNotesFileExistsAndIsNonEmpty() throws {
+        let workflow = try sourceWorkflow()
+        let pattern = #"--notes\s+([^\s]+)"#
+        let range = NSRange(workflow.startIndex..., in: workflow)
+        let expression = try NSRegularExpression(pattern: pattern)
+        let match = try XCTUnwrap(expression.firstMatch(in: workflow, range: range))
+        let notesPathRange = try XCTUnwrap(Range(match.range(at: 1), in: workflow))
+        let notesURL = sourceRoot().appendingPathComponent(String(workflow[notesPathRange]))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
+        let notes = try String(contentsOf: notesURL, encoding: .utf8)
+        XCTAssertFalse(notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
     // Break caught: a temporary signing identity persists after a failed release job or the runner's keychain defaults are left modified.
     func testWorkflowAlwaysCleansTemporaryCertificateAndKeychain() throws {
         let workflow = try sourceWorkflow()
@@ -47,7 +62,10 @@ final class ReleaseWorkflowTests: XCTestCase {
     }
 
     private func sourceWorkflow() throws -> String {
-        let root = ProcessTestSupport.sourceRoot(filePath: #filePath)
-        return try String(contentsOf: root.appendingPathComponent(".github/workflows/release.yml"))
+        return try String(contentsOf: sourceRoot().appendingPathComponent(".github/workflows/release.yml"))
+    }
+
+    private func sourceRoot() -> URL {
+        ProcessTestSupport.sourceRoot(filePath: #filePath)
     }
 }
