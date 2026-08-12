@@ -17,15 +17,17 @@ release_find_sign_update() {
         return
     fi
 
-    local candidate
-    for candidate in .build/artifacts/**/sign_update(N.); do
-        [[ -x "$candidate" ]] || continue
-        print -r -- "$candidate"
-        return
-    done
-
-    print -u2 -r -- "ERROR: could not find Sparkle sign_update"
-    return 1
+    local -a candidates
+    candidates=(.build/artifacts/**/Sparkle/bin/sign_update(N.))
+    (( ${#candidates} == 1 )) || {
+        print -u2 -r -- "ERROR: expected exactly one Sparkle sign_update"
+        return 1
+    }
+    [[ -x "$candidates[1]" ]] || {
+        print -u2 -r -- "ERROR: Sparkle sign_update is not executable"
+        return 1
+    }
+    print -r -- "$candidates[1]"
 }
 
 release_verify_signature() {

@@ -28,8 +28,9 @@ final class SparkleReleaseTests: XCTestCase {
         XCTAssertTrue(appcast.contains("https://github.com/woosublee/drift/releases/download/v0.1.0/Drift-0.1.0.dmg"))
         XCTAssertTrue(appcast.contains("sparkle:edSignature=\"TEST_SIGNATURE\""))
         let log = try String(contentsOf: fixture.appendingPathComponent("sign-update.log"))
-        XCTAssertTrue(log.contains("SIGN"))
-        XCTAssertTrue(log.contains("VERIFY TEST_SIGNATURE"))
+        XCTAssertTrue(log.contains("CANONICAL SIGN"))
+        XCTAssertTrue(log.contains("CANONICAL VERIFY TEST_SIGNATURE"))
+        XCTAssertFalse(log.contains("DECOY"))
     }
 
     private var sourceRoot: URL {
@@ -97,7 +98,18 @@ final class SparkleReleaseTests: XCTestCase {
         XCTAssertEqual(update.status, 0, update.output)
         try Data("test dmg".utf8).write(to: fixture.appendingPathComponent("build/release/Drift-0.1.0.dmg"))
 
-        let signUpdate = tools.appendingPathComponent("sign_update")
+        let canonicalSignUpdate = fixture.appendingPathComponent(".build/artifacts/sparkle/Sparkle/bin/sign_update")
+        let decoySignUpdate = fixture.appendingPathComponent(
+            ".build/artifacts/sparkle/Sparkle/bin/old_dsa_scripts/sign_update"
+        )
+        try fileManager.createDirectory(
+            at: canonicalSignUpdate.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: decoySignUpdate.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try """
         #!/bin/zsh
         set -euo pipefail
@@ -107,15 +119,23 @@ final class SparkleReleaseTests: XCTestCase {
             [[ "$2" == "--ed-key-file" && "$3" == "-" ]]
             [[ "$4" == "$PWD/build/release/Drift-0.1.0.dmg" ]]
             [[ "$5" == "TEST_SIGNATURE" ]]
-            print -r -- "VERIFY $5" >> "$SIGN_UPDATE_LOG"
+            print -r -- "CANONICAL VERIFY $5" >> "$SIGN_UPDATE_LOG"
             exit 0
         fi
         [[ "$1" == "$PWD/build/release/Drift-0.1.0.dmg" ]]
         [[ "$2" == "--ed-key-file" && "$3" == "-" ]]
-        print -r -- "SIGN" >> "$SIGN_UPDATE_LOG"
+        print -r -- "CANONICAL SIGN" >> "$SIGN_UPDATE_LOG"
         print -r -- 'sparkle:edSignature="TEST_SIGNATURE"'
-        """.write(to: signUpdate, atomically: true, encoding: .utf8)
-        try makeExecutable(signUpdate)
+        """.write(to: canonicalSignUpdate, atomically: true, encoding: .utf8)
+        try makeExecutable(canonicalSignUpdate)
+        try """
+        #!/bin/zsh
+        set -euo pipefail
+        cat >/dev/null
+        print -r -- "DECOY" >> "$SIGN_UPDATE_LOG"
+        exit 1
+        """.write(to: decoySignUpdate, atomically: true, encoding: .utf8)
+        try makeExecutable(decoySignUpdate)
 
         addTeardownBlock {
             try? fileManager.removeItem(at: fixture)
@@ -129,7 +149,6 @@ final class SparkleReleaseTests: XCTestCase {
             arguments: [fixture.appendingPathComponent("scripts/generate-sparkle-appcast.sh").path],
             environment: [
                 "SPARKLE_PRIVATE_KEY": privateKey,
-                "SPARKLE_SIGN_UPDATE": fixture.appendingPathComponent("tools/sign_update").path,
                 "SIGN_UPDATE_LOG": fixture.appendingPathComponent("sign-update.log").path
             ],
             currentDirectory: fixture
