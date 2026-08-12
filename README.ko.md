@@ -31,7 +31,7 @@ Drift는 사용자의 실제 입력이 없는 시간을 기다린 뒤 설정된 
 
 Drift가 cursor를 움직이고 선택적 click을 실행하려면 macOS Accessibility 권한이 필요합니다. `Drift`와 `Drift Dev`는 서로 다른 Bundle ID를 사용하므로 macOS가 각 앱의 권한과 설정을 독립적으로 관리합니다.
 
-Drift에는 analytics가 없습니다. 향후 업데이트를 위해 Sparkle 2.9.2가 포함되어 있지만, deployment build에 update feed metadata가 제공되지 않으면 비활성 상태를 유지합니다. Development bundle에는 feed URL과 Sparkle public key가 모두 포함되지 않습니다.
+Drift에는 analytics가 없습니다. Production release는 Sparkle 2.9.2를 사용해 stable release feed의 서명된 업데이트를 제공합니다. Production artifact는 self-signed `Drift` identity를 사용하므로 Gatekeeper 경고가 표시될 수 있으며 notarization된 앱이 아닙니다. Development bundle에는 feed URL과 Sparkle public key가 모두 포함되지 않습니다. dry-run과 공개 배포 안전장치를 포함한 운영 절차는 [release runbook](docs/releasing.md)을 참고하세요.
 
 ## 빌드 및 실행
 
