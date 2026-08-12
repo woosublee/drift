@@ -29,6 +29,21 @@ release_positive_integer_greater_than() {
     release_is_positive_int64 "$value" && release_is_positive_int64 "$minimum" && (( value > minimum ))
 }
 
+release_validate_sparkle_public_key() {
+    local key="$1"
+    python3 - "$key" <<'PY'
+import base64
+import sys
+
+value = sys.argv[1]
+try:
+    decoded = base64.b64decode(value, validate=True)
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if len(value) == 44 and value.endswith('=') and value.count('=') == 1 and len(decoded) == 32 else 1)
+PY
+}
+
 release_atomic_replace() {
     local source="$1"
     local destination="$2"
