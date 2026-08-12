@@ -257,6 +257,8 @@ bundle-prebuilt: validate-build-identity
 	else \
 		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$(APP_DIR)"; \
 	fi
+	@find "$(APP_DIR)" -depth -exec xattr -d com.apple.FinderInfo {} + 2>/dev/null || true
+	@find "$(APP_DIR)" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P' {} + 2>/dev/null || true
 	@$(SHELL) $(VERIFY_SIGNING_XATTRS) "$(APP_DIR)"
 	codesign --verify --strict --verbose=2 "$(APP_DIR)"
 

@@ -40,6 +40,26 @@ final class BundleSigningMetadataTests: XCTestCase {
         XCTAssertLessThan(guardIndex, appSigningIndex)
     }
 
+    func testMakefileCleansSigningMetadataAfterFinalAppSigningBeforeGuardAndVerification() throws {
+        let makefile = try String(contentsOf: sourceRoot.appendingPathComponent("Makefile"))
+        let appSigning = "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""
+        let finderInfoCleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d com.apple.FinderInfo"
+        let fileProviderCleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P'"
+        let guardInvocation = "$(SHELL) $(VERIFY_SIGNING_XATTRS) \"$(APP_DIR)\""
+        let verification = "codesign --verify --strict --verbose=2 \"$(APP_DIR)\""
+
+        let finalSigningIndex = try XCTUnwrap(makefile.range(of: appSigning)?.lowerBound)
+        let finalPipeline = String(makefile[finalSigningIndex...])
+        let finderInfoCleanupIndex = try XCTUnwrap(finalPipeline.range(of: finderInfoCleanup)?.lowerBound)
+        let fileProviderCleanupIndex = try XCTUnwrap(finalPipeline.range(of: fileProviderCleanup)?.lowerBound)
+        let guardIndex = try XCTUnwrap(finalPipeline.range(of: guardInvocation)?.lowerBound)
+        let verificationIndex = try XCTUnwrap(finalPipeline.range(of: verification)?.lowerBound)
+
+        XCTAssertLessThan(finderInfoCleanupIndex, guardIndex)
+        XCTAssertLessThan(fileProviderCleanupIndex, guardIndex)
+        XCTAssertLessThan(guardIndex, verificationIndex)
+    }
+
     func testMakefileBuildsVariantAwareBundleUnderConfigurableTemporaryDirectory() throws {
         let makefile = try String(contentsOf: sourceRoot.appendingPathComponent("Makefile"))
         let defaultBuildDirectory = "/tmp/drift-bundles/default"
