@@ -17,6 +17,12 @@ release_is_positive_int64() {
     [[ "$value" < 9223372036854775807 || "$value" == 9223372036854775807 ]]
 }
 
+release_is_nonnegative_int64() {
+    local value="$1"
+    [[ "$value" == "0" ]] && return 0
+    release_is_positive_int64 "$value"
+}
+
 release_positive_integer_greater_than() {
     local value="$1"
     local minimum="$2"
@@ -58,6 +64,27 @@ release_appcast_extract_enclosure_url() {
 
 release_appcast_extract_enclosure_version() {
     release_appcast_extract_enclosure_attribute "$1" '{http://www.andymatuschak.org/xml-namespaces/sparkle}version'
+}
+
+release_appcast_extract_item_short_version() {
+    local appcast="$1"
+    python3 - "$appcast" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (ET.ParseError, OSError) as error:
+    raise SystemExit(f"ERROR: could not parse appcast: {error}")
+namespace = '{http://www.andymatuschak.org/xml-namespaces/sparkle}'
+for item in root.iter('item'):
+    value = item.findtext(f'{namespace}shortVersionString')
+    if value is not None:
+        print(value)
+        break
+else:
+    raise SystemExit('ERROR: appcast item is missing sparkle:shortVersionString')
+PY
 }
 
 release_load_identity() {

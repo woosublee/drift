@@ -82,7 +82,7 @@ final class ReleaseVersionTests: XCTestCase {
             executable: "/bin/zsh",
             arguments: [
                 "-c",
-                "source \"$1\"; release_positive_integer_greater_than 2 1; ! release_positive_integer_greater_than 1 2; [[ \"$(release_appcast_extract_enclosure_url \"$2\")\" == \"https://example.com/Drift-0.1.0.dmg\" ]]; [[ \"$(release_appcast_extract_enclosure_version \"$2\")\" == \"2\" ]]",
+                "source \"$1\"; release_positive_integer_greater_than 2 1; ! release_positive_integer_greater_than 1 2; release_is_nonnegative_int64 0; [[ \"$(release_appcast_extract_enclosure_url \"$2\")\" == \"https://example.com/Drift-0.1.0.dmg\" ]]; [[ \"$(release_appcast_extract_enclosure_version \"$2\")\" == \"2\" ]]",
                 "release-library-test",
                 library.path,
                 appcast.path
