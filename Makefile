@@ -26,10 +26,14 @@ CONTENTS_DIR = $(APP_DIR)/Contents
 MACOS_DIR = $(CONTENTS_DIR)/MacOS
 FRAMEWORKS_DIR = $(CONTENTS_DIR)/Frameworks
 BIN_DIR = $(shell $(SWIFT) build -c $(CONFIGURATION) --show-bin-path)
+APP_EXECUTABLE ?= $(BIN_DIR)/Drift
+SPARKLE_FRAMEWORK ?= $(shell find "$(BIN_DIR)" -type d -name Sparkle.framework -print -quit)
+PREBUILT_EXECUTABLE ?=
+PREBUILT_SPARKLE_FRAMEWORK ?=
 VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
 
-.PHONY: test app verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
+.PHONY: test swift-build app bundle-prebuilt release-app verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
 
 release-metadata-check:
 	@$(RELEASE_RESOLVER) validate
@@ -168,23 +172,37 @@ validate-build-identity:
 		exit 1; \
 	fi
 
-app: validate-build-identity
-	$(SWIFT) build -c $(CONFIGURATION)
+swift-build: release-metadata-check
+	$(SWIFT) build -c $(CONFIGURATION) --product Drift
+
+app: swift-build
+	$(MAKE) bundle-prebuilt \
+		CONFIGURATION="$(CONFIGURATION)" APP_VARIANT="$(APP_VARIANT)" \
+		BUILD_DIR="$(BUILD_DIR)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" \
+		PREBUILT_EXECUTABLE="$(APP_EXECUTABLE)" \
+		PREBUILT_SPARKLE_FRAMEWORK="$(SPARKLE_FRAMEWORK)" \
+		SPARKLE_FEED_URL="$(SPARKLE_FEED_URL)" \
+		SPARKLE_PUBLIC_ED_KEY="$(SPARKLE_PUBLIC_ED_KEY)"
+
+bundle-prebuilt: validate-build-identity
+	@if [[ -z "$(PREBUILT_EXECUTABLE)" ]] || [[ ! -x "$(PREBUILT_EXECUTABLE)" ]]; then \
+		echo "PREBUILT_EXECUTABLE must name an executable file" >&2; \
+		exit 1; \
+	fi
+	@if [[ -z "$(PREBUILT_SPARKLE_FRAMEWORK)" ]] || [[ ! -d "$(PREBUILT_SPARKLE_FRAMEWORK)" ]]; then \
+		echo "PREBUILT_SPARKLE_FRAMEWORK must name Sparkle.framework" >&2; \
+		exit 1; \
+	fi
 	rm -rf "$(APP_DIR)"
 	mkdir -p "$(MACOS_DIR)" "$(FRAMEWORKS_DIR)"
-	cp "$(BIN_DIR)/Drift" "$(MACOS_DIR)/Drift"
+	cp "$(PREBUILT_EXECUTABLE)" "$(MACOS_DIR)/Drift"
 	cp Info.plist "$(CONTENTS_DIR)/Info.plist"
 	plutil -replace CFBundleIdentifier -string "$(BUNDLE_IDENTIFIER)" "$(CONTENTS_DIR)/Info.plist"
 	plutil -replace CFBundleName -string "$(PRODUCT_NAME)" "$(CONTENTS_DIR)/Info.plist"
 	plutil -replace CFBundleDisplayName -string "$(PRODUCT_NAME)" "$(CONTENTS_DIR)/Info.plist"
 	plutil -replace NSAccessibilityAccessDescription \
 		-string "$(ACCESSIBILITY_DESCRIPTION)" "$(CONTENTS_DIR)/Info.plist"
-	@framework="$$(find "$(BIN_DIR)" -type d -name Sparkle.framework -print -quit)"; \
-	if [[ -z "$$framework" ]]; then \
-		echo "Sparkle.framework was not produced by SwiftPM" >&2; \
-		exit 1; \
-	fi; \
-	ditto --norsrc --noextattr "$$framework" "$(FRAMEWORKS_DIR)/Sparkle.framework"
+	ditto --norsrc --noextattr "$(PREBUILT_SPARKLE_FRAMEWORK)" "$(FRAMEWORKS_DIR)/Sparkle.framework"
 	@if ! otool -l "$(MACOS_DIR)/Drift" | grep -A2 LC_RPATH | grep -Fq '@executable_path/../Frameworks'; then \
 		install_name_tool -add_rpath '@executable_path/../Frameworks' "$(MACOS_DIR)/Drift"; \
 	fi
@@ -211,14 +229,24 @@ app: validate-build-identity
 		fi; \
 	fi
 	@function sign_if_present() { \
-		if [[ -e "$$1" ]]; then codesign --force --sign "$(CODESIGN_IDENTITY)" "$$1"; fi; \
+		if [[ -e "$$1" ]]; then \
+			if [[ "$(CODESIGN_IDENTITY)" == "-" ]]; then \
+				codesign --force --sign "$(CODESIGN_IDENTITY)" "$$1"; \
+			else \
+				codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$$1"; \
+			fi; \
+		fi; \
 	}; \
 	framework="$(FRAMEWORKS_DIR)/Sparkle.framework/Versions/B"; \
 	sign_if_present "$$framework/XPCServices/Installer.xpc"; \
 	sign_if_present "$$framework/XPCServices/Downloader.xpc"; \
 	sign_if_present "$$framework/Autoupdate"; \
 	sign_if_present "$$framework/Updater.app"; \
-	codesign --force --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"
+	if [[ "$(CODESIGN_IDENTITY)" == "-" ]]; then \
+		codesign --force --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"; \
+	else \
+		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"; \
+	fi
 	@find "$(APP_DIR)" -depth -exec xattr -d com.apple.FinderInfo {} + 2>/dev/null || true
 	@find "$(APP_DIR)" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P' {} + 2>/dev/null || true
 	@$(SHELL) $(VERIFY_SIGNING_XATTRS) "$(APP_DIR)"
@@ -227,10 +255,13 @@ app: validate-build-identity
 			--requirements '=designated => identifier "$(BUNDLE_IDENTIFIER)"' \
 			"$(APP_DIR)"; \
 	else \
-		codesign --force --sign "$(CODESIGN_IDENTITY)" "$(APP_DIR)"; \
+		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$(APP_DIR)"; \
 	fi
 	@$(SHELL) $(VERIFY_SIGNING_XATTRS) "$(APP_DIR)"
 	codesign --verify --strict --verbose=2 "$(APP_DIR)"
+
+release-app: release-metadata-check
+	@scripts/build-universal-app.sh
 
 verify-app: app
 	@if [[ "$(RESOLVED_APP_VARIANT)" == "dev" ]]; then \

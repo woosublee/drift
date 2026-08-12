@@ -159,7 +159,19 @@ final class BuildIdentityScriptTests: XCTestCase {
         try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Makefile"), to: root.appendingPathComponent("Makefile"))
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Info.plist"), to: root.appendingPathComponent("Info.plist"))
-        for script in ["resolve-build-identity.sh", "verify-bundle-signing-xattrs.sh"] {
+        let release = root.appendingPathComponent("release", isDirectory: true)
+        try fileManager.createDirectory(at: release, withIntermediateDirectories: true)
+        try fileManager.copyItem(
+            at: sourceRoot.appendingPathComponent("release/version.json"),
+            to: release.appendingPathComponent("version.json")
+        )
+        for script in [
+            "resolve-build-identity.sh",
+            "release-version-lib.sh",
+            "resolve-release-version.sh",
+            "sync-release-version.sh",
+            "verify-bundle-signing-xattrs.sh"
+        ] {
             try fileManager.copyItem(
                 at: sourceRoot.appendingPathComponent("scripts/\(script)"),
                 to: scripts.appendingPathComponent(script)
