@@ -116,6 +116,16 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertFalse(result.output.contains("test-only-sensitive-signer-output"))
     }
 
+    // Break caught: Make invokes the aggregate verifier directly, so its tracked mode must remain executable.
+    func testSourceVerifierIsExecutable() throws {
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: sourceRoot.appendingPathComponent("scripts/verify-release-artifacts.sh").path
+        )
+        let permissions = try XCTUnwrap(attributes[.posixPermissions] as? NSNumber).intValue
+
+        XCTAssertNotEqual(permissions & 0o111, 0)
+    }
+
     private var sourceRoot: URL {
         ProcessTestSupport.sourceRoot(filePath: #filePath)
     }
