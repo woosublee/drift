@@ -30,6 +30,12 @@ final class ReleaseBuildTests: XCTestCase {
         XCTAssertTrue(makefile.contains("codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""))
     }
 
+    func testGitignoreExcludesReleaseBuildArtifacts() throws {
+        let gitignore = try String(contentsOf: sourceRoot.appendingPathComponent(".gitignore"))
+
+        XCTAssertTrue(gitignore.split(separator: "\n").contains("build/"))
+    }
+
     private var sourceRoot: URL {
         ProcessTestSupport.sourceRoot(filePath: #filePath)
     }
