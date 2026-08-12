@@ -67,7 +67,7 @@ architectures="$("$LIPO" -archs "$app/Contents/MacOS/Drift" | tr ' ' '\n' | sort
 certificate_directory="$(mktemp -d "${TMPDIR:-/tmp}/drift-provenance-cert.XXXXXX")"
 trap 'rm -rf "$certificate_directory"' EXIT
 certificate_prefix="$certificate_directory/certificate-"
-"$CODESIGN" --extract-certificates "$certificate_prefix" "$app"
+"$CODESIGN" -d "--extract-certificates=$certificate_prefix" "$app"
 certificate="$certificate_prefix"0
 [[ -f "$certificate" ]] || {
     print -u2 -r -- "ERROR: codesign did not extract a signing certificate"

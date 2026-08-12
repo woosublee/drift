@@ -48,6 +48,8 @@ final class ReleaseMetadataTests: XCTestCase {
         XCTAssertEqual(release["build"] as? Int, 1)
         XCTAssertEqual(release["tag"] as? String, "v0.1.0")
         XCTAssertEqual(release["architectures"] as? [String], ["arm64", "x86_64"])
+        let codesignLog = try String(contentsOf: fixture.appendingPathComponent("codesign.log"))
+        XCTAssertEqual(codesignLog, "certificate extraction invocation verified\n")
         XCTAssertNil(value["privateMaterial"])
         XCTAssertFalse(
             String(
@@ -202,10 +204,12 @@ final class ReleaseMetadataTests: XCTestCase {
         try """
         #!/bin/zsh
         set -euo pipefail
-        [[ "$1" == "--extract-certificates" ]]
-        prefix="$2"
+        [[ "$1" == "-d" ]]
+        [[ "$2" == --extract-certificates=* ]]
+        prefix="${2#--extract-certificates=}"
         app="$3"
         [[ -d "$app" ]]
+        print -r -- "certificate extraction invocation verified" > "$CODESIGN_LOG"
         print -rn -- "certificate" > "${prefix}0"
         """.write(to: codesign, atomically: true, encoding: .utf8)
         try makeExecutable(codesign)
@@ -282,6 +286,7 @@ final class ReleaseMetadataTests: XCTestCase {
             ],
             environment: [
                 "CODESIGN": fixture.appendingPathComponent("tools/codesign").path,
+                "CODESIGN_LOG": fixture.appendingPathComponent("codesign.log").path,
                 "GIT": fixture.appendingPathComponent("tools/git").path,
                 "LIPO": fixture.appendingPathComponent("tools/lipo").path,
                 "OPENSSL": fixture.appendingPathComponent("tools/openssl").path,
