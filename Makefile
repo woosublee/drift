@@ -1,4 +1,7 @@
 SHELL := /bin/zsh
+RELEASE_LOCKED_VARIABLES := VERSION BUILD_NUMBER RELEASE_TAG DMG_PATH BUNDLE_IDENTIFIER
+$(foreach variable,$(RELEASE_LOCKED_VARIABLES),$(if $(filter command line environment environment override,$(origin $(variable))),$(error $(variable) cannot be overridden from Make or environment)))
+
 CONFIGURATION ?= release
 APP_VARIANT ?=
 SWIFT ?= swift
@@ -12,6 +15,7 @@ SPARKLE_GENERATE_KEYS ?= .build/artifacts/sparkle/Sparkle/bin/generate_keys
 SPARKLE_FEED_URL ?=
 SPARKLE_PUBLIC_ED_KEY ?=
 BUILD_DIR ?= /tmp/drift-bundles/default
+RELEASE_RESOLVER := scripts/resolve-release-version.sh
 IDENTITY_RESOLVER := scripts/resolve-build-identity.sh
 RESOLVED_APP_VARIANT = $(shell $(IDENTITY_RESOLVER) "$(CONFIGURATION)" "$(APP_VARIANT)" variant)
 PRODUCT_NAME = $(shell $(IDENTITY_RESOLVER) "$(CONFIGURATION)" "$(APP_VARIANT)" product-name)
@@ -25,7 +29,20 @@ BIN_DIR = $(shell $(SWIFT) build -c $(CONFIGURATION) --show-bin-path)
 VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
 
-.PHONY: test app verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity
+.PHONY: test app verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
+
+release-metadata-check:
+	@$(RELEASE_RESOLVER) validate
+	@scripts/sync-release-version.sh --check
+
+print-release-version:
+	@$(RELEASE_RESOLVER) version
+
+print-release-build:
+	@$(RELEASE_RESOLVER) build
+
+print-release-tag:
+	@$(RELEASE_RESOLVER) tag
 
 test:
 	swift test
