@@ -284,7 +284,6 @@ certificate_sha256="${certificate_metadata#* }"
 commit="$($GIT rev-parse HEAD)"
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || release_fail "Git HEAD must be a 40-character lowercase commit SHA"
 previous_metadata="${provenance:h}/previous-release.json"
-[[ -f "$previous_metadata" ]] || release_fail "previous release metadata does not exist: $previous_metadata"
 
 python3 - \
     "$provenance" \
@@ -386,24 +385,32 @@ def verify_artifact(name, path):
 verify_artifact('dmg', dmg_path)
 verify_artifact('appcast', appcast_path)
 
-with open(previous_path, encoding='utf-8') as handle:
-    previous_metadata = json.load(handle)
-if type(previous_metadata) is not dict or set(previous_metadata) != {'source', 'previous'}:
-    raise SystemExit('ERROR: previous release metadata has an invalid shape')
-previous = previous_metadata['previous']
-if previous is not None:
-    if type(previous) is not dict or set(previous) != {'version', 'build', 'tag', 'dmgName'}:
-        raise SystemExit('ERROR: previous release metadata has an invalid previous value')
+def verify_previous(value, label):
+    if value is None:
+        return
+    if type(value) is not dict or set(value) != {'version', 'build', 'tag', 'dmgName'}:
+        raise SystemExit(f'ERROR: {label} has an invalid previous value')
     if (
-        type(previous['version']) is not str
-        or not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', previous['version'])
-        or type(previous['build']) is not int
-        or isinstance(previous['build'], bool)
-        or previous['build'] <= 0
-        or previous['tag'] != f"v{previous['version']}"
-        or previous['dmgName'] != f"Drift-{previous['version']}.dmg"
+        type(value['version']) is not str
+        or not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', value['version'])
+        or type(value['build']) is not int
+        or isinstance(value['build'], bool)
+        or value['build'] <= 0
+        or value['tag'] != f"v{value['version']}"
+        or value['dmgName'] != f"Drift-{value['version']}.dmg"
     ):
-        raise SystemExit('ERROR: previous release metadata has an invalid previous value')
-if provenance['previous'] != previous:
-    raise SystemExit('ERROR: provenance previous release mismatch')
+        raise SystemExit(f'ERROR: {label} has an invalid previous value')
+
+previous = provenance['previous']
+verify_previous(previous, 'provenance previous release')
+
+if os.path.isfile(previous_path):
+    with open(previous_path, encoding='utf-8') as handle:
+        previous_metadata = json.load(handle)
+    if type(previous_metadata) is not dict or set(previous_metadata) != {'source', 'previous'}:
+        raise SystemExit('ERROR: previous release metadata has an invalid shape')
+    sidecar_previous = previous_metadata['previous']
+    verify_previous(sidecar_previous, 'previous release metadata')
+    if previous != sidecar_previous:
+        raise SystemExit('ERROR: provenance previous release mismatch')
 PY

@@ -46,6 +46,46 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertTrue(result.output.contains("provenance DMG SHA-256 mismatch"))
     }
 
+    // Break caught: rejecting the published three-artifact release because its build-time sidecar was not published.
+    func testVerifierAcceptsPublishedReleaseWithoutPreviousReleaseSidecar() throws {
+        let fixture = try makeArtifactVerificationFixture(
+            includePreviousReleaseSidecar: false,
+            provenancePrevious: validPreviousRelease(version: "0.0.9", build: 9)
+        )
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertEqual(result.status, 0, result.output)
+    }
+
+    // Break caught: accepting a sidecar that contradicts the previous release identity embedded in provenance.
+    func testVerifierRejectsPreviousReleaseSidecarMismatch() throws {
+        let fixture = try makeArtifactVerificationFixture(
+            provenancePrevious: validPreviousRelease(version: "0.0.8", build: 8),
+            sidecarPrevious: validPreviousRelease(version: "0.0.9", build: 9)
+        )
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("provenance previous release mismatch"))
+    }
+
+    // Break caught: treating missing sidecar data as an excuse to skip embedded prior-release normalization.
+    func testVerifierRejectsInvalidEmbeddedPreviousReleaseWithoutSidecar() throws {
+        let fixture = try makeArtifactVerificationFixture(
+            includePreviousReleaseSidecar: false,
+            provenancePrevious: [
+                "version": "not-semver",
+                "build": 1,
+                "tag": "vnot-semver",
+                "dmgName": "Drift-not-semver.dmg"
+            ]
+        )
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("provenance previous release has an invalid previous value"))
+    }
+
     // Break caught: allowing provenance to smuggle an unverified field into a public release record.
     func testVerifierRejectsUnknownProvenanceTopLevelKey() throws {
         let fixture = try makeArtifactVerificationFixture(extraProvenanceKey: true)
@@ -86,7 +126,10 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         verifySignature: Bool = true,
         provenanceDMGSHA256: String? = nil,
         extraProvenanceKey: Bool = false,
-        mountedArchitectures: [String]? = nil
+        mountedArchitectures: [String]? = nil,
+        includePreviousReleaseSidecar: Bool = true,
+        provenancePrevious: Any = NSNull(),
+        sidecarPrevious: Any = NSNull()
     ) throws -> URL {
         let fixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReleaseArtifactVerificationTests-\(UUID().uuidString)", isDirectory: true)
@@ -154,12 +197,11 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         try makeAppcast(length: appcastLength).write(to: appcast, atomically: true, encoding: .utf8)
         let expectedAppcastSHA256 = sha256(of: appcast)
 
-        let previousMetadata = "{\"source\":\"no-previous-release\",\"previous\":null}\n"
-        try previousMetadata.write(
-            to: fixture.appendingPathComponent("build/release/previous-release.json"),
-            atomically: true,
-            encoding: .utf8
-        )
+        if includePreviousReleaseSidecar {
+            let previousMetadata: [String: Any] = ["source": "fixture", "previous": sidecarPrevious]
+            let previousData = try JSONSerialization.data(withJSONObject: previousMetadata, options: [.sortedKeys])
+            try previousData.write(to: fixture.appendingPathComponent("build/release/previous-release.json"))
+        }
         let provenanceValue: [String: Any] = [
             "schemaVersion": 1,
             "release": [
@@ -191,7 +233,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 ]
             ],
             "build": ["timestamp": "2026-08-12T00:00:00Z", "workflowRunID": NSNull()],
-            "previous": NSNull()
+            "previous": provenancePrevious
         ]
         var completeProvenanceValue = provenanceValue
         if extraProvenanceKey {
@@ -320,6 +362,15 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             ],
             currentDirectory: fixture
         )
+    }
+
+    private func validPreviousRelease(version: String, build: Int) -> [String: Any] {
+        [
+            "version": version,
+            "build": build,
+            "tag": "v\(version)",
+            "dmgName": "Drift-\(version).dmg"
+        ]
     }
 
     private func makeAppcast(length: Int) -> String {
