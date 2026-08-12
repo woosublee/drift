@@ -33,7 +33,7 @@ PREBUILT_SPARKLE_FRAMEWORK ?=
 VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
 
-.PHONY: test swift-build app bundle-prebuilt release-app release-dmg verify-release-dmg verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
+.PHONY: test swift-build app bundle-prebuilt release-app release-dmg release-appcast verify-release-dmg verify-app run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
 
 release-metadata-check:
 	@$(RELEASE_RESOLVER) validate
@@ -265,6 +265,9 @@ release-app: release-metadata-check
 
 release-dmg: release-app
 	@scripts/package-release-dmg.sh
+
+release-appcast: release-dmg
+	@scripts/generate-sparkle-appcast.sh
 
 verify-release-dmg: release-dmg
 	@codesign --verify --strict --verbose=2 "$$(scripts/resolve-release-version.sh dmg-path)"
