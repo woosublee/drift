@@ -33,6 +33,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
+          persist-credentials: false
 
       - name: Resolve release and publish mode
         id: release
@@ -49,13 +50,13 @@ jobs:
             publish_requested=false
           fi
 
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$publish_requested" == true ]]; then
+          if [[ "$publish_requested" == true ]]; then
             [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || {
-              print -u2 -r -- "ERROR: manual publish must run on refs/tags/$RELEASE_TAG"
+              print -u2 -r -- "ERROR: publication must run on refs/tags/$RELEASE_TAG"
               exit 1
             }
             [[ "$(git rev-list -n 1 "$RELEASE_TAG")" == "$GITHUB_SHA" ]] || {
-              print -u2 -r -- "ERROR: manual publish tag must resolve to GITHUB_SHA"
+              print -u2 -r -- "ERROR: publication tag must resolve to GITHUB_SHA"
               exit 1
             }
           fi
@@ -99,10 +100,17 @@ jobs:
         shell: zsh {0}
         run: |
           set -euo pipefail
+          RELEASE_TAG="${{ steps.release.outputs.release_tag }}"
           swift test
-          scripts/check-release-monotonic.sh --repository "$GITHUB_REPOSITORY" --output build/release/previous-release.json
+          scripts/check-release-monotonic.sh \
+            --repository "$GITHUB_REPOSITORY" \
+            --output build/release/previous-release.json \
+            --exclude-tag "$RELEASE_TAG"
           make verify-release-artifacts CODESIGN_IDENTITY=Drift
-          scripts/check-release-monotonic.sh --repository "$GITHUB_REPOSITORY" --output build/release/previous-release.json
+          scripts/check-release-monotonic.sh \
+            --repository "$GITHUB_REPOSITORY" \
+            --output build/release/previous-release.json \
+            --exclude-tag "$RELEASE_TAG"
 
       - name: Upload verified release artifacts
         uses: actions/upload-artifact@v4

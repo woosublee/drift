@@ -39,7 +39,7 @@ done
     print -u2 -r -- "ERROR: repository must use OWNER/REPO format"
     exit 2
 }
-[[ -n "$tag$notes" ]] || usage
+[[ -n "$tag" && -n "$notes" ]] || usage
 
 cd "$repo_root"
 source "$script_dir/release-version-lib.sh"

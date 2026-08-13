@@ -48,7 +48,9 @@ final class BundleSigningMetadataTests: XCTestCase {
         let guardInvocation = "$(SHELL) $(VERIFY_SIGNING_XATTRS) \"$(APP_DIR)\""
         let verification = "codesign --verify --strict --verbose=2 \"$(APP_DIR)\""
 
-        let finalSigningIndex = try XCTUnwrap(makefile.range(of: appSigning)?.lowerBound)
+        let finalSigningIndex = try XCTUnwrap(
+            makefile.range(of: appSigning, options: .backwards)?.lowerBound
+        )
         let finalPipeline = String(makefile[finalSigningIndex...])
         let finderInfoCleanupIndex = try XCTUnwrap(finalPipeline.range(of: finderInfoCleanup)?.lowerBound)
         let fileProviderCleanupIndex = try XCTUnwrap(finalPipeline.range(of: fileProviderCleanup)?.lowerBound)

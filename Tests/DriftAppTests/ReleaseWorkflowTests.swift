@@ -33,6 +33,30 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertFalse(workflow.contains("--clobber"))
     }
 
+    // Break caught: any pushed v* tag can publish the canonical release artifacts under the wrong tag.
+    func testWorkflowValidatesEveryPublicationRefAndCommit() throws {
+        let workflow = try sourceWorkflow()
+
+        XCTAssertTrue(workflow.contains("if [[ \"$publish_requested\" == true ]]; then"))
+        XCTAssertFalse(
+            workflow.contains(
+                "if [[ \"$GITHUB_EVENT_NAME\" == \"workflow_dispatch\" && \"$publish_requested\" == true ]]; then"
+            )
+        )
+        XCTAssertTrue(workflow.contains("[[ \"$GITHUB_REF\" == \"refs/tags/$RELEASE_TAG\" ]]"))
+        XCTAssertTrue(workflow.contains("[[ \"$(git rev-list -n 1 \"$RELEASE_TAG\")\" == \"$GITHUB_SHA\" ]]"))
+    }
+
+    // Break caught: rerunning an already-published tag selects that same release as the previous release and fails monotonicity.
+    func testWorkflowExcludesCurrentTagFromEveryMonotonicityCheck() throws {
+        let workflow = try sourceWorkflow()
+        let pattern = #"scripts/check-release-monotonic\.sh[\s\\]+--repository \"\$GITHUB_REPOSITORY\"[\s\\]+--output build/release/previous-release\.json[\s\\]+--exclude-tag \"\$RELEASE_TAG\""#
+        let expression = try NSRegularExpression(pattern: pattern)
+        let range = NSRange(workflow.startIndex..., in: workflow)
+
+        XCTAssertEqual(expression.matches(in: workflow, range: range).count, 2)
+    }
+
     // Break caught: publication refers to release notes that do not exist, making a tagged publish fail after artifact verification.
     func testWorkflowNotesFileExistsAndIsNonEmpty() throws {
         let workflow = try sourceWorkflow()
@@ -46,6 +70,13 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
         let notes = try String(contentsOf: notesURL, encoding: .utf8)
         XCTAssertFalse(notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    // Break caught: checkout persists the workflow token in .git/config inside a job that handles signing secrets.
+    func testWorkflowDoesNotPersistCheckoutCredentials() throws {
+        let workflow = try sourceWorkflow()
+
+        XCTAssertTrue(workflow.contains("persist-credentials: false"))
     }
 
     // Break caught: monotonicity and publication scripts invoke gh, which exits unauthenticated in Actions without GH_TOKEN.

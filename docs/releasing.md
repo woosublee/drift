@@ -41,9 +41,9 @@ Do **not** use `security export -t identities`: it can export unrelated identiti
 
 ## 5. Secret registration
 
-Register the certificate, its temporary export password, and Sparkle private key without printing the values. Replace `/secure/path/Drift.p12` with the temporary export location, and run these commands only in a trusted local shell:
+Register the certificate, its temporary export password, and Sparkle private key without printing the values. Replace `/secure/path/Drift.p12` with the temporary export location, and run these commands only in a trusted local **zsh** shell:
 
-```bash
+```zsh
 base64 < /secure/path/Drift.p12 | gh secret set DRIFT_CERTIFICATE_BASE64
 read -s 'P12_PASSWORD?Drift.p12 password: '; printf '%s' "$P12_PASSWORD" | gh secret set DRIFT_CERTIFICATE_PASSWORD; unset P12_PASSWORD
 security find-generic-password \

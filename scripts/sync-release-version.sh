@@ -31,8 +31,8 @@ if [[ "$plist_build" != "$RELEASE_BUILD" ]]; then
 fi
 
 if (( $# == 1 )); then
-    (( mismatch == 0 ))
-    exit
+    (( mismatch == 0 )) && exit 0
+    exit 1
 fi
 
 if (( mismatch == 0 )); then

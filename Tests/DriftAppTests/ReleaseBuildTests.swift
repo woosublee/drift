@@ -24,9 +24,31 @@ final class ReleaseBuildTests: XCTestCase {
 
     func testReleaseSigningAppliesHardenedRuntimeToNestedCodeAndApp() throws {
         let makefile = try String(contentsOf: sourceRoot.appendingPathComponent("Makefile"))
-        for path in ["Installer.xpc", "Downloader.xpc", "Autoupdate", "Updater.app", "Sparkle.framework"] {
-            XCTAssertTrue(makefile.contains("--options runtime"), "Missing hardened runtime for \(path)")
+        let helperStart = try XCTUnwrap(makefile.range(of: "function sign_if_present()")?.lowerBound)
+        let frameworkStart = try XCTUnwrap(
+            makefile.range(of: "framework=\"$(FRAMEWORKS_DIR)/Sparkle.framework/Versions/B\"")?.lowerBound
+        )
+        let helper = String(makefile[helperStart..<frameworkStart])
+
+        XCTAssertTrue(
+            helper.contains("codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$$1\"")
+        )
+        for path in [
+            "$$framework/XPCServices/Installer.xpc",
+            "$$framework/XPCServices/Downloader.xpc",
+            "$$framework/Autoupdate",
+            "$$framework/Updater.app"
+        ] {
+            XCTAssertTrue(
+                makefile.contains("sign_if_present \"\(path)\""),
+                "Missing nested hardened-runtime signing path: \(path)"
+            )
         }
+        XCTAssertTrue(
+            makefile.contains(
+                "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
+            )
+        )
         XCTAssertTrue(makefile.contains("codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""))
     }
 

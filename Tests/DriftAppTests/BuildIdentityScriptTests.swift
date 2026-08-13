@@ -54,6 +54,19 @@ final class BuildIdentityScriptTests: XCTestCase {
         )
     }
 
+    // Break caught: bundle verification can drift from the canonical Sparkle public-key format rules.
+    func testBundleVerifierUsesCanonicalSparklePublicKeyValidation() throws {
+        let root = ProcessTestSupport.sourceRoot(filePath: #filePath)
+        let verifier = try String(
+            contentsOf: root.appendingPathComponent("scripts/verify-app-bundle.sh"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(verifier.contains("source \"$script_dir/release-version-lib.sh\""))
+        XCTAssertTrue(verifier.contains("release_validate_sparkle_public_key \"$key\""))
+        XCTAssertFalse(verifier.contains("import base64"))
+    }
+
     func testOptimizedPythonRejectsInvalidConfiguredProductionKeyDuringAssembly() throws {
         let fixture = try assemblyFixture()
         let result = try makeApp(

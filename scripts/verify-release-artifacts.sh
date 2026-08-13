@@ -56,7 +56,7 @@ while (( $# > 0 )); do
         *) usage ;;
     esac
 done
-[[ -n "$source_plist$app$dmg$appcast$provenance" ]] || usage
+[[ -n "$source_plist" && -n "$app" && -n "$dmg" && -n "$appcast" && -n "$provenance" ]] || usage
 
 cd "$repo_root"
 source "$script_dir/release-sparkle-lib.sh"
@@ -168,7 +168,8 @@ print(value)
         return 1
     }
     rm -rf "$certificate_directory"
-    print -r -- "$certificate_common_name $certificate_sha256"
+    print -r -- "$certificate_common_name"
+    print -r -- "$certificate_sha256"
 }
 
 source_key="$(verify_public_key "$source_plist" "source Info.plist")"
@@ -278,9 +279,10 @@ if [[ -n "$previous_appcast" ]]; then
         release_fail "current build $RELEASE_BUILD must be greater than previous build $previous_build"
 fi
 
-certificate_metadata="$(extract_certificate_metadata "$app")"
-certificate_common_name="${certificate_metadata%% *}"
-certificate_sha256="${certificate_metadata#* }"
+certificate_metadata=("${(@f)$(extract_certificate_metadata "$app")}")
+(( ${#certificate_metadata} == 2 )) || release_fail "could not parse signing certificate metadata"
+certificate_common_name="$certificate_metadata[1]"
+certificate_sha256="$certificate_metadata[2]"
 commit="$($GIT rev-parse HEAD)"
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || release_fail "Git HEAD must be a 40-character lowercase commit SHA"
 previous_metadata="${provenance:h}/previous-release.json"

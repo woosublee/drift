@@ -14,6 +14,29 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertEqual(result.status, 0, result.output)
     }
 
+    // Break caught: concatenating required values lets one present argument hide other missing arguments.
+    func testVerifierUsesUsageErrorWhenAnyRequiredArgumentIsMissing() throws {
+        let result = try ProcessTestSupport.run(
+            executable: "/bin/zsh",
+            arguments: [
+                sourceRoot.appendingPathComponent("scripts/verify-release-artifacts.sh").path,
+                "--source-plist", "Info.plist"
+            ],
+            currentDirectory: sourceRoot
+        )
+
+        XCTAssertEqual(result.status, 2, result.output)
+        XCTAssertTrue(result.output.contains("usage:"))
+    }
+
+    // Break caught: whitespace splitting truncates a valid certificate common name before provenance comparison.
+    func testVerifierPreservesSpacesInCertificateCommonName() throws {
+        let fixture = try makeArtifactVerificationFixture(certificateCommonName: "Drift Release")
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertEqual(result.status, 0, result.output)
+    }
+
     // Break caught: accepting a release executable that lacks an Intel slice.
     func testVerifierRejectsNonUniversalExecutable() throws {
         let fixture = try makeArtifactVerificationFixture(architectures: ["arm64"])
@@ -139,7 +162,8 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         mountedArchitectures: [String]? = nil,
         includePreviousReleaseSidecar: Bool = true,
         provenancePrevious: Any = NSNull(),
-        sidecarPrevious: Any = NSNull()
+        sidecarPrevious: Any = NSNull(),
+        certificateCommonName: String = "Drift"
     ) throws -> URL {
         let fixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReleaseArtifactVerificationTests-\(UUID().uuidString)", isDirectory: true)
@@ -202,10 +226,10 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         }
 
         try Data("test-only dmg payload".utf8).write(to: dmg)
-        let expectedDMGSHA256 = sha256(of: dmg)
+        let expectedDMGSHA256 = try sha256(of: dmg)
         let appcastLength = try Data(contentsOf: dmg).count + appcastLengthDelta
         try makeAppcast(length: appcastLength).write(to: appcast, atomically: true, encoding: .utf8)
-        let expectedAppcastSHA256 = sha256(of: appcast)
+        let expectedAppcastSHA256 = try sha256(of: appcast)
 
         if includePreviousReleaseSidecar {
             let previousMetadata: [String: Any] = ["source": "fixture", "previous": sidecarPrevious]
@@ -226,7 +250,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 "downloadURL": "https://github.com/woosublee/drift/releases/download/v0.1.0/Drift-0.1.0.dmg"
             ],
             "signing": [
-                "certificateCommonName": "Drift",
+                "certificateCommonName": certificateCommonName,
                 "certificateSHA256": String(repeating: "A", count: 64),
                 "sparklePublicKey": testPublicKey
             ],
@@ -281,7 +305,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             content: """
             [[ "$1" == "x509" ]]
             if [[ "$*" == *"-subject"* ]]; then
-                print -r -- "subject=CN=Drift"
+                print -r -- "subject=CN=$CERTIFICATE_COMMON_NAME"
             else
                 print -r -- "sha256 Fingerprint=AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA"
             fi
@@ -357,6 +381,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 "--provenance", "build/release/release-provenance.json"
             ],
             environment: [
+                "CERTIFICATE_COMMON_NAME": try certificateCommonName(in: fixture),
                 "CODESIGN": fixture.appendingPathComponent("tools/codesign").path,
                 "GIT": fixture.appendingPathComponent("tools/git").path,
                 "HDIUTIL": fixture.appendingPathComponent("tools/hdiutil").path,
@@ -372,6 +397,14 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             ],
             currentDirectory: fixture
         )
+    }
+
+    private func certificateCommonName(in fixture: URL) throws -> String {
+        let data = try Data(contentsOf: fixture.appendingPathComponent("build/release/release-provenance.json"))
+        let value = try JSONSerialization.jsonObject(with: data)
+        let provenance = try XCTUnwrap(value as? [String: Any])
+        let signing = try XCTUnwrap(provenance["signing"] as? [String: Any])
+        return try XCTUnwrap(signing["certificateCommonName"] as? String)
     }
 
     private func validPreviousRelease(version: String, build: Int) -> [String: Any] {
@@ -424,17 +457,21 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
-    private func sha256(of url: URL) -> String {
+    private func sha256(of url: URL) throws -> String {
         let task = Process()
         let output = Pipe()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/shasum")
         task.arguments = ["-a", "256", url.path]
         task.standardOutput = output
-        try! task.run()
+        try task.run()
         task.waitUntilExit()
-        return String(
-            data: output.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        )!.split(separator: " ", maxSplits: 1)[0].lowercased()
+        XCTAssertEqual(task.terminationStatus, 0)
+        let text = try XCTUnwrap(
+            String(
+                data: output.fileHandleForReading.readDataToEndOfFile(),
+                encoding: .utf8
+            )
+        )
+        return try XCTUnwrap(text.split(separator: " ", maxSplits: 1).first).lowercased()
     }
 }

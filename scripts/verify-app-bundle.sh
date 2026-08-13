@@ -6,6 +6,9 @@ if (( $# != 4 )); then
     exit 2
 fi
 
+script_dir="${0:A:h}"
+source "$script_dir/release-version-lib.sh"
+
 app="$1"
 mode="$2"
 bundle_id="$3"
@@ -53,18 +56,7 @@ done
 verify_public_key() {
     local key
     key="$(plutil -extract SUPublicEDKey raw "$plist")"
-    if ! python3 - "$key" <<'PY'
-import base64
-import sys
-
-value = sys.argv[1]
-try:
-    decoded = base64.b64decode(value, validate=True)
-except ValueError:
-    raise SystemExit(1)
-raise SystemExit(0 if len(value) == 44 and value.endswith('=') and value.count('=') == 1 and len(decoded) == 32 else 1)
-PY
-    then
+    if ! release_validate_sparkle_public_key "$key"; then
         echo "Sparkle public key must be a 44-character padded Base64 value decoding to 32 bytes" >&2
         return 1
     fi

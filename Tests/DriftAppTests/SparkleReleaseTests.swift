@@ -33,6 +33,30 @@ final class SparkleReleaseTests: XCTestCase {
         XCTAssertFalse(log.contains("DECOY"))
     }
 
+    // Break caught: an empty Keychain item can be piped to a permissive verifier and treated as a valid signing key.
+    func testSignatureVerifierRejectsEmptyPrivateKeyBeforeInvokingSigner() throws {
+        let fixture = try makeSignatureVerificationFixture(
+            securityBody: "exit 0",
+            signerBody: "print -r -- invoked >> \"$SIGNER_LOG\"; cat >/dev/null; exit 0"
+        )
+        let result = try runSignatureVerifier(in: fixture, privateKey: nil)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.appendingPathComponent("signer.log").path))
+    }
+
+    // Break caught: signer stderr may contain secret-adjacent key diagnostics that must not enter release logs.
+    func testSignatureVerifierRedactsSignerFailureOutput() throws {
+        let fixture = try makeSignatureVerificationFixture(
+            securityBody: "exit 2",
+            signerBody: "cat >/dev/null; print -u2 -r -- test-only-sensitive-signer-output; exit 1"
+        )
+        let result = try runSignatureVerifier(in: fixture, privateKey: testPrivateSeed)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertFalse(result.output.contains("test-only-sensitive-signer-output"))
+    }
+
     private var sourceRoot: URL {
         ProcessTestSupport.sourceRoot(filePath: #filePath)
     }
@@ -150,6 +174,69 @@ final class SparkleReleaseTests: XCTestCase {
             environment: [
                 "SPARKLE_PRIVATE_KEY": privateKey,
                 "SIGN_UPDATE_LOG": fixture.appendingPathComponent("sign-update.log").path
+            ],
+            currentDirectory: fixture
+        )
+    }
+
+    private func makeSignatureVerificationFixture(
+        securityBody: String,
+        signerBody: String
+    ) throws -> URL {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SparkleSignatureVerificationTests-\(UUID().uuidString)", isDirectory: true)
+        let scripts = fixture.appendingPathComponent("scripts", isDirectory: true)
+        let tools = fixture.appendingPathComponent("tools", isDirectory: true)
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
+
+        let library = scripts.appendingPathComponent("release-sparkle-lib.sh")
+        try fileManager.copyItem(
+            at: sourceRoot.appendingPathComponent("scripts/release-sparkle-lib.sh"),
+            to: library
+        )
+        try makeExecutable(library)
+
+        let security = tools.appendingPathComponent("security")
+        try "#!/bin/zsh\nset -euo pipefail\n\(securityBody)\n".write(
+            to: security,
+            atomically: true,
+            encoding: .utf8
+        )
+        try makeExecutable(security)
+
+        let signer = tools.appendingPathComponent("sign_update")
+        try "#!/bin/zsh\nset -euo pipefail\n\(signerBody)\n".write(
+            to: signer,
+            atomically: true,
+            encoding: .utf8
+        )
+        try makeExecutable(signer)
+
+        try Data("test dmg".utf8).write(to: fixture.appendingPathComponent("Drift.dmg"))
+        addTeardownBlock {
+            try? fileManager.removeItem(at: fixture)
+        }
+        return fixture
+    }
+
+    private func runSignatureVerifier(in fixture: URL, privateKey: String?) throws -> TestProcessResult {
+        let tools = fixture.appendingPathComponent("tools", isDirectory: true)
+        return try ProcessTestSupport.run(
+            executable: "/bin/zsh",
+            arguments: [
+                "-c",
+                "source \"$1\"; release_verify_signature \"$2\" TEST_SIGNATURE",
+                "signature-verifier-test",
+                fixture.appendingPathComponent("scripts/release-sparkle-lib.sh").path,
+                fixture.appendingPathComponent("Drift.dmg").path
+            ],
+            environment: [
+                "PATH": "\(tools.path):\(ProcessInfo.processInfo.environment["PATH"] ?? "")",
+                "SPARKLE_PRIVATE_KEY": privateKey ?? "",
+                "SPARKLE_SIGN_UPDATE": tools.appendingPathComponent("sign_update").path,
+                "SIGNER_LOG": fixture.appendingPathComponent("signer.log").path
             ],
             currentDirectory: fixture
         )

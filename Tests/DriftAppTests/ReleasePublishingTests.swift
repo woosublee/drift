@@ -22,6 +22,24 @@ final class ReleasePublishingTests: XCTestCase {
         XCTAssertTrue(result.output.contains("release tag must be annotated"), result.output)
     }
 
+    // Break caught: concatenating tag and notes lets either required publication argument be omitted.
+    func testPublisherRequiresTagAndNotesIndividually() throws {
+        let fixture = try makePublishingFixture()
+        let missingTag = try runScript(
+            "publish-github-release.sh",
+            in: fixture,
+            arguments: ["--repository", "woosublee/drift", "--notes", "notes.md"]
+        )
+        let missingNotes = try runScript(
+            "publish-github-release.sh",
+            in: fixture,
+            arguments: ["--repository", "woosublee/drift", "--tag", "v0.1.0"]
+        )
+
+        XCTAssertEqual(missingTag.status, 2, missingTag.output)
+        XCTAssertEqual(missingNotes.status, 2, missingNotes.output)
+    }
+
     // Break caught: overwriting a mismatched release asset instead of safely resuming only exact assets.
     func testPublisherResumesOnlyMatchingAssetsAndRejectsDifferentChecksums() throws {
         let matching = try makePublishingFixture(existingAssets: [.dmgMatching])

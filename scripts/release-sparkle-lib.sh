@@ -33,8 +33,11 @@ release_find_sign_update() {
 release_verify_signature() {
     local dmg="$1"
     local signature="$2"
-    local sign_update
+    local sign_update private_key
     sign_update="$(release_find_sign_update)" || return
+    private_key="$(release_sparkle_private_key)" || return
+    [[ -n "$private_key" ]] || return 1
 
-    release_sparkle_private_key | "$sign_update" --verify --ed-key-file - "$dmg" "$signature"
+    print -rn -- "$private_key" | \
+        "$sign_update" --verify --ed-key-file - "$dmg" "$signature" >/dev/null 2>&1
 }
