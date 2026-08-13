@@ -1,7 +1,9 @@
+import AppKit
 import XCTest
 import DriftCore
 @testable import DriftApp
 
+@MainActor
 final class DriftPopoverPresentationTests: XCTestCase {
     func testSectionOrderPlacesIndependentMotionCardsBeforeMovementSettings() {
         XCTAssertEqual(
@@ -136,6 +138,23 @@ final class DriftPopoverPresentationTests: XCTestCase {
             DriftPopoverPresentation.loginItemMessage(for: .unavailable),
             "Launch at Login is unavailable"
         )
+    }
+
+    func testPopoverUsesNativeMaterialWithSubtleCardSurfaces() {
+        XCTAssertEqual(DriftPopoverAppearance.material, .popover)
+        XCTAssertEqual(DriftPopoverAppearance.blendingMode, .behindWindow)
+        XCTAssertEqual(DriftPopoverAppearance.cardBackgroundOpacity, 0.36)
+        XCTAssertEqual(DriftPopoverAppearance.cardBorderOpacity, 0.22)
+        XCTAssertEqual(DriftPopoverAppearance.statusTintOpacity, 0.10)
+        XCTAssertEqual(DriftPopoverAppearance.statusBorderOpacity, 0.32)
+    }
+
+    func testMaterialViewUsesApprovedNativeAppearance() {
+        let materialView = DriftPopoverAppearance.makeMaterialView()
+
+        XCTAssertEqual(materialView.material, .popover)
+        XCTAssertEqual(materialView.blendingMode, .behindWindow)
+        XCTAssertEqual(materialView.state, .active)
     }
 
     func testApprovedCompactPopoverMetricsAreExact() {

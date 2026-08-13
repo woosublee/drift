@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import DriftCore
 
@@ -26,6 +27,23 @@ public struct DriftPopoverStatusPresentation: Equatable {
     public init(label: String, tone: DriftPopoverStatusTone) {
         self.label = label
         self.tone = tone
+    }
+}
+
+enum DriftPopoverAppearance {
+    static let material = NSVisualEffectView.Material.popover
+    static let blendingMode = NSVisualEffectView.BlendingMode.behindWindow
+    static let cardBackgroundOpacity = 0.36
+    static let cardBorderOpacity = 0.22
+    static let statusTintOpacity = 0.10
+    static let statusBorderOpacity = 0.32
+
+    static func makeMaterialView() -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
     }
 }
 
