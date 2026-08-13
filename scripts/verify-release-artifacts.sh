@@ -108,12 +108,27 @@ verify_app_metadata() {
     local expected_key="$3"
     local plist="$candidate_app/Contents/Info.plist"
     local executable="$candidate_app/Contents/MacOS/Drift"
+    local icon="$candidate_app/Contents/Resources/AppIcon.icns"
+    local active_menu_icon="$candidate_app/Contents/Resources/MenuBarIcon-Active.svg"
+    local inactive_menu_icon="$candidate_app/Contents/Resources/MenuBarIcon-Inactive.svg"
 
     [[ -f "$plist" ]] || release_fail "$label Info.plist does not exist"
     [[ -x "$executable" ]] || release_fail "$label executable does not exist"
+    [[ -s "$icon" ]] || {
+        release_fail "$label icon does not exist"
+        return 1
+    }
+    for menu_icon in "$active_menu_icon" "$inactive_menu_icon"; do
+        [[ -s "$menu_icon" ]] || {
+            release_fail "$label menu bar icon does not exist"
+            return 1
+        }
+    done
     verify_version_and_build "$plist" "$label"
     [[ "$(plist_value "$plist" CFBundleIdentifier)" == "com.woosublee.drift" ]] || \
         release_fail "$label bundle identifier mismatch: expected com.woosublee.drift"
+    [[ "$(plist_value "$plist" CFBundleIconFile)" == "AppIcon.icns" ]] || \
+        release_fail "$label CFBundleIconFile mismatch: expected AppIcon.icns"
     [[ "$(plist_value "$plist" SUFeedURL)" == "$RELEASE_FEED_URL" ]] || \
         release_fail "$label SUFeedURL mismatch: expected $RELEASE_FEED_URL"
     [[ "$(verify_public_key "$plist" "$label")" == "$expected_key" ]] || \
@@ -201,6 +216,9 @@ if ! "$CODESIGN" --verify --deep --strict --verbose=2 "$mounted_app"; then
     exit 1
 fi
 if ! "$CODESIGN" --verify --strict --verbose=2 "$dmg"; then
+    exit 1
+fi
+if ! "$script_dir/verify-app-startup.sh" "$mounted_app"; then
     exit 1
 fi
 if ! "$HDIUTIL" detach "$mountpoint"; then

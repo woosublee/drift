@@ -139,6 +139,20 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertFalse(result.output.contains("test-only-sensitive-signer-output"))
     }
 
+    // Break caught: a canonical app can be valid while the DMG silently loses its Finder icon.
+    func testVerifierRejectsMountedDMGAppMissingIcon() throws {
+        let fixture = try makeArtifactVerificationFixture()
+        try FileManager.default.removeItem(
+            at: fixture.appendingPathComponent(
+                "mounted-app/Drift.app/Contents/Resources/AppIcon.icns"
+            )
+        )
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("mounted DMG app icon does not exist"), result.output)
+    }
+
     // Break caught: Make invokes the aggregate verifier directly, so its tracked mode must remain executable.
     func testSourceVerifierIsExecutable() throws {
         let attributes = try FileManager.default.attributesOfItem(
@@ -180,14 +194,16 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: release, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
-        try fileManager.createDirectory(
-            at: app.appendingPathComponent("Contents/MacOS", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        try fileManager.createDirectory(
-            at: mountedApp.appendingPathComponent("Contents/MacOS", isDirectory: true),
-            withIntermediateDirectories: true
-        )
+        for artifactApp in [app, mountedApp] {
+            try fileManager.createDirectory(
+                at: artifactApp.appendingPathComponent("Contents/MacOS", isDirectory: true),
+                withIntermediateDirectories: true
+            )
+            try fileManager.createDirectory(
+                at: artifactApp.appendingPathComponent("Contents/Resources", isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
 
         for path in ["release/version.json"] {
             try fileManager.copyItem(
@@ -199,6 +215,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             "release-version-lib.sh",
             "resolve-release-version.sh",
             "release-sparkle-lib.sh",
+            "verify-app-startup.sh",
             "verify-release-artifacts.sh"
         ] {
             let source = sourceRoot.appendingPathComponent("scripts/\(script)")
@@ -221,8 +238,22 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 at: info
             )
             let executable = artifactApp.appendingPathComponent("Contents/MacOS/Drift")
-            try "#!/bin/zsh\nexit 0\n".write(to: executable, atomically: true, encoding: .utf8)
+            try """
+            #!/bin/zsh
+            trap 'exit 0' TERM INT
+            while true; do sleep 1; done
+            """.write(to: executable, atomically: true, encoding: .utf8)
             try makeExecutable(executable)
+            let resources = artifactApp.appendingPathComponent("Contents/Resources")
+            try Data("fixture app icon".utf8).write(
+                to: resources.appendingPathComponent("AppIcon.icns")
+            )
+            try Data("fixture active menu icon".utf8).write(
+                to: resources.appendingPathComponent("MenuBarIcon-Active.svg")
+            )
+            try Data("fixture inactive menu icon".utf8).write(
+                to: resources.appendingPathComponent("MenuBarIcon-Inactive.svg")
+            )
         }
 
         try Data("test-only dmg payload".utf8).write(to: dmg)
@@ -393,7 +424,8 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 "SPARKLE_PRIVATE_KEY": testPrivateKey,
                 "SPARKLE_SIGN_UPDATE": fixture.appendingPathComponent("tools/sign_update").path,
                 "VERIFY_SIGNATURE": verifySignature ? "1" : "0",
-                "MOUNTED_ARCHITECTURES": mountedArchitectures?.joined(separator: " ") ?? ""
+                "MOUNTED_ARCHITECTURES": mountedArchitectures?.joined(separator: " ") ?? "",
+                "STARTUP_GRACE_SECONDS": "0.1"
             ],
             currentDirectory: fixture
         )

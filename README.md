@@ -33,6 +33,10 @@ Drift needs macOS Accessibility permission to move the pointer and issue optiona
 
 Drift includes no analytics. Production releases use Sparkle 2.9.2 to deliver signed updates from the stable release feed. Production artifacts use a self-signed `Drift` identity, so Gatekeeper may show a warning; they are not notarized. Development bundles contain neither a feed URL nor a Sparkle public key. See the [release runbook](docs/releasing.md) for the operator process, including dry-runs and publication safeguards.
 
+## Install a release
+
+Download the DMG from [GitHub Releases](https://github.com/woosublee/drift/releases), drag `Drift.app` into Applications, then Control-click the installed app and choose **Open** for the first launch. macOS may require this explicit confirmation because the current release is self-signed and not notarized. After Drift starts, use its menu-bar icon; it intentionally has no Dock icon or normal app window.
+
 ## Build and run
 
 ### Requirements

@@ -33,6 +33,10 @@ Drift가 cursor를 움직이고 선택적 click을 실행하려면 macOS Accessi
 
 Drift에는 analytics가 없습니다. Production release는 Sparkle 2.9.2를 사용해 stable release feed의 서명된 업데이트를 제공합니다. Production artifact는 self-signed `Drift` identity를 사용하므로 Gatekeeper 경고가 표시될 수 있으며 notarization된 앱이 아닙니다. Development bundle에는 feed URL과 Sparkle public key가 모두 포함되지 않습니다. dry-run과 공개 배포 안전장치를 포함한 운영 절차는 [release runbook](docs/releasing.md)을 참고하세요.
 
+## 릴리즈 설치
+
+[GitHub Releases](https://github.com/woosublee/drift/releases)에서 DMG를 다운로드하고 `Drift.app`을 응용 프로그램 폴더로 드래그한 다음, 처음 한 번은 설치된 앱을 Control-클릭하여 **열기**를 선택하세요. 현재 릴리즈는 self-signed 상태이며 notarization되지 않았기 때문에 macOS가 명시적인 실행 확인을 요구할 수 있습니다. Drift가 실행되면 메뉴 막대 아이콘을 사용하세요. 의도적으로 Dock icon이나 일반 앱 창은 표시하지 않습니다.
+
 ## 빌드 및 실행
 
 ### 요구사항

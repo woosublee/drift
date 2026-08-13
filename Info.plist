@@ -8,6 +8,8 @@
 	<string>Drift</string>
 	<key>CFBundleExecutable</key>
 	<string>Drift</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.woosublee.drift</string>
 	<key>CFBundleInfoDictionaryVersion</key>

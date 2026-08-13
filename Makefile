@@ -7,6 +7,8 @@ APP_VARIANT ?=
 SWIFT ?= swift
 SECURITY ?= security
 CODESIGN ?= codesign
+SIPS ?= sips
+ICONUTIL ?= iconutil
 CODESIGN_IDENTITY ?= Drift
 LOCAL_CERTIFICATE_IDENTITY ?= Drift
 SPARKLE_KEYCHAIN_SERVICE ?= https://sparkle-project.org
@@ -25,6 +27,12 @@ APP_DIR = $(BUILD_DIR)/$(PRODUCT_NAME).app
 CONTENTS_DIR = $(APP_DIR)/Contents
 MACOS_DIR = $(CONTENTS_DIR)/MacOS
 FRAMEWORKS_DIR = $(CONTENTS_DIR)/Frameworks
+RESOURCES_DIR = $(CONTENTS_DIR)/Resources
+APP_ICON_SOURCE := Resources/AppIcon-Source.png
+APP_ICONSET_DIR = $(BUILD_DIR)/AppIcon.iconset
+APP_ICON_FILE = $(RESOURCES_DIR)/AppIcon.icns
+MENU_BAR_ACTIVE_ICON := Resources/MenuBarIcon-Active.svg
+MENU_BAR_INACTIVE_ICON := Resources/MenuBarIcon-Inactive.svg
 BIN_DIR = $(shell $(SWIFT) build -c $(CONFIGURATION) --show-bin-path)
 APP_EXECUTABLE ?= $(BIN_DIR)/Drift
 SPARKLE_FRAMEWORK ?= $(shell find "$(BIN_DIR)" -type d -name Sparkle.framework -print -quit)
@@ -32,6 +40,7 @@ PREBUILT_EXECUTABLE ?=
 PREBUILT_SPARKLE_FRAMEWORK ?=
 VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
+ENTITLEMENTS := Drift.entitlements
 
 .PHONY: test swift-build app bundle-prebuilt release-app release-dmg release-appcast release-provenance verify-release-artifacts verify-release-dmg verify-app release-dry-run run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
 
@@ -193,8 +202,21 @@ bundle-prebuilt: validate-build-identity
 		echo "PREBUILT_SPARKLE_FRAMEWORK must name Sparkle.framework" >&2; \
 		exit 1; \
 	fi
-	rm -rf "$(APP_DIR)"
-	mkdir -p "$(MACOS_DIR)" "$(FRAMEWORKS_DIR)"
+	rm -rf "$(APP_DIR)" "$(APP_ICONSET_DIR)"
+	mkdir -p "$(MACOS_DIR)" "$(FRAMEWORKS_DIR)" "$(RESOURCES_DIR)" "$(APP_ICONSET_DIR)"
+	$(SIPS) -z 16 16 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_16x16.png" >/dev/null
+	$(SIPS) -z 32 32 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_16x16@2x.png" >/dev/null
+	$(SIPS) -z 32 32 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_32x32.png" >/dev/null
+	$(SIPS) -z 64 64 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_32x32@2x.png" >/dev/null
+	$(SIPS) -z 128 128 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_128x128.png" >/dev/null
+	$(SIPS) -z 256 256 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_128x128@2x.png" >/dev/null
+	$(SIPS) -z 256 256 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_256x256.png" >/dev/null
+	$(SIPS) -z 512 512 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_256x256@2x.png" >/dev/null
+	$(SIPS) -z 512 512 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_512x512.png" >/dev/null
+	cp "$(APP_ICON_SOURCE)" "$(APP_ICONSET_DIR)/icon_512x512@2x.png"
+	$(ICONUTIL) -c icns "$(APP_ICONSET_DIR)" -o "$(APP_ICON_FILE)"
+	cp "$(MENU_BAR_ACTIVE_ICON)" "$(RESOURCES_DIR)/MenuBarIcon-Active.svg"
+	cp "$(MENU_BAR_INACTIVE_ICON)" "$(RESOURCES_DIR)/MenuBarIcon-Inactive.svg"
 	cp "$(PREBUILT_EXECUTABLE)" "$(MACOS_DIR)/Drift"
 	cp Info.plist "$(CONTENTS_DIR)/Info.plist"
 	plutil -replace CFBundleIdentifier -string "$(BUNDLE_IDENTIFIER)" "$(CONTENTS_DIR)/Info.plist"
@@ -255,7 +277,8 @@ bundle-prebuilt: validate-build-identity
 			--requirements '=designated => identifier "$(BUNDLE_IDENTIFIER)"' \
 			"$(APP_DIR)"; \
 	else \
-		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$(APP_DIR)"; \
+		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" \
+			--entitlements "$(ENTITLEMENTS)" "$(APP_DIR)"; \
 	fi
 	@find "$(APP_DIR)" -depth -exec xattr -d com.apple.FinderInfo {} + 2>/dev/null || true
 	@find "$(APP_DIR)" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P' {} + 2>/dev/null || true
