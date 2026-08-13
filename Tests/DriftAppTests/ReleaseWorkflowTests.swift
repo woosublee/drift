@@ -48,6 +48,13 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertFalse(notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
+    // Break caught: monotonicity and publication scripts invoke gh, which exits unauthenticated in Actions without GH_TOKEN.
+    func testWorkflowAuthenticatesGitHubCLIWithWorkflowToken() throws {
+        let workflow = try sourceWorkflow()
+
+        XCTAssertTrue(workflow.contains("GH_TOKEN: ${{ github.token }}"))
+    }
+
     // Break caught: GitHub accepts zsh only as a custom shell format string containing the script placeholder.
     func testWorkflowUsesRunnableZshFormatString() throws {
         let workflow = try sourceWorkflow()

@@ -26,6 +26,7 @@ jobs:
       CERTIFICATE_BASE64: ${{ secrets.DRIFT_CERTIFICATE_BASE64 }}
       CERTIFICATE_PASSWORD: ${{ secrets.DRIFT_CERTIFICATE_PASSWORD }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out the selected ref
         uses: actions/checkout@v4
