@@ -26,7 +26,6 @@ jobs:
       CERTIFICATE_BASE64: ${{ secrets.DRIFT_CERTIFICATE_BASE64 }}
       CERTIFICATE_PASSWORD: ${{ secrets.DRIFT_CERTIFICATE_PASSWORD }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-      KEYCHAIN_PATH: ${{ runner.temp }}/drift-release.keychain-db
     steps:
       - name: Check out the selected ref
         uses: actions/checkout@v4
@@ -74,6 +73,7 @@ jobs:
           print -r -- "::add-mask::$CERTIFICATE_BASE64"
           print -r -- "::add-mask::$CERTIFICATE_PASSWORD"
           print -r -- "::add-mask::$SPARKLE_PRIVATE_KEY"
+          KEYCHAIN_PATH="$RUNNER_TEMP/drift-release.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
           print -r -- "::add-mask::$KEYCHAIN_PASSWORD"
 
@@ -82,6 +82,7 @@ jobs:
           ORIGINAL_KEYCHAINS="$(security list-keychains -d user | tr -d '\"')"
           printf 'ORIGINAL_DEFAULT_KEYCHAIN=%s\n' "$ORIGINAL_DEFAULT_KEYCHAIN" >> "$GITHUB_ENV"
           printf 'ORIGINAL_KEYCHAINS=%s\n' "$ORIGINAL_KEYCHAINS" >> "$GITHUB_ENV"
+          printf 'KEYCHAIN_PATH=%s\n' "$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           printf 'KEYCHAIN_PASSWORD=%s\n' "$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"

@@ -48,6 +48,16 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertFalse(notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
+    // Break caught: job-level env cannot resolve the runner context, so GitHub rejects the workflow before any step starts.
+    func testWorkflowInitializesTemporaryKeychainPathAtRuntime() throws {
+        let workflow = try sourceWorkflow()
+
+        XCTAssertFalse(workflow.contains("KEYCHAIN_PATH: ${{ runner.temp }}"))
+        XCTAssertTrue(
+            workflow.contains("printf 'KEYCHAIN_PATH=%s\\n' \"$KEYCHAIN_PATH\" >> \"$GITHUB_ENV\"")
+        )
+    }
+
     // Break caught: a temporary signing identity persists after a failed release job or the runner's keychain defaults are left modified.
     func testWorkflowAlwaysCleansTemporaryCertificateAndKeychain() throws {
         let workflow = try sourceWorkflow()
