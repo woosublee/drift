@@ -31,7 +31,7 @@ Drift is a native macOS menu bar utility that waits for idle time before perform
 
 Drift needs macOS Accessibility permission to move the pointer and issue optional clicks. `Drift` and `Drift Dev` use separate Bundle IDs, so macOS manages their permissions and settings independently.
 
-Drift includes no analytics. Sparkle 2.9.2 is embedded for future updates, but it remains inactive unless a deployment build supplies update-feed metadata. Development bundles contain neither a feed URL nor a Sparkle public key.
+Drift includes no analytics. Production releases use Sparkle 2.9.2 to deliver signed updates from the stable release feed. Production artifacts use a self-signed `Drift` identity, so Gatekeeper may show a warning; they are not notarized. Development bundles contain neither a feed URL nor a Sparkle public key. See the [release runbook](docs/releasing.md) for the operator process, including dry-runs and publication safeguards.
 
 ## Build and run
 

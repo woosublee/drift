@@ -54,6 +54,19 @@ final class BuildIdentityScriptTests: XCTestCase {
         )
     }
 
+    // Break caught: bundle verification can drift from the canonical Sparkle public-key format rules.
+    func testBundleVerifierUsesCanonicalSparklePublicKeyValidation() throws {
+        let root = ProcessTestSupport.sourceRoot(filePath: #filePath)
+        let verifier = try String(
+            contentsOf: root.appendingPathComponent("scripts/verify-app-bundle.sh"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(verifier.contains("source \"$script_dir/release-version-lib.sh\""))
+        XCTAssertTrue(verifier.contains("release_validate_sparkle_public_key \"$key\""))
+        XCTAssertFalse(verifier.contains("import base64"))
+    }
+
     func testOptimizedPythonRejectsInvalidConfiguredProductionKeyDuringAssembly() throws {
         let fixture = try assemblyFixture()
         let result = try makeApp(
@@ -159,7 +172,19 @@ final class BuildIdentityScriptTests: XCTestCase {
         try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Makefile"), to: root.appendingPathComponent("Makefile"))
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Info.plist"), to: root.appendingPathComponent("Info.plist"))
-        for script in ["resolve-build-identity.sh", "verify-bundle-signing-xattrs.sh"] {
+        let release = root.appendingPathComponent("release", isDirectory: true)
+        try fileManager.createDirectory(at: release, withIntermediateDirectories: true)
+        try fileManager.copyItem(
+            at: sourceRoot.appendingPathComponent("release/version.json"),
+            to: release.appendingPathComponent("version.json")
+        )
+        for script in [
+            "resolve-build-identity.sh",
+            "release-version-lib.sh",
+            "resolve-release-version.sh",
+            "sync-release-version.sh",
+            "verify-bundle-signing-xattrs.sh"
+        ] {
             try fileManager.copyItem(
                 at: sourceRoot.appendingPathComponent("scripts/\(script)"),
                 to: scripts.appendingPathComponent(script)
