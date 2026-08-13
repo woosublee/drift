@@ -14,6 +14,7 @@ final class ClickSequencePlannerTests: XCTestCase {
             nextAlternatingButton: .left,
             start: start,
             clickPosition: click,
+            departurePosition: CGPoint(x: 300, y: 700),
             bounds: bounds,
             random: ClickSequenceStubRandomSource()
         )
@@ -21,14 +22,18 @@ final class ClickSequencePlannerTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    func testFixedClickUsesStandardOutboundAndReturnsToOriginalPosition() throws {
-        let plan = try makePlan(isSmartMotionEnabled: false, clickMode: .left)
+    func testFixedClickUsesDistanceBasedPathsAndMovesToDeparturePosition() throws {
+        let departure = CGPoint(x: 300, y: 700)
+        let plan = try makePlan(
+            isSmartMotionEnabled: false,
+            clickMode: .left,
+            departurePosition: departure
+        )
 
         XCTAssertEqual(plan.button, .left)
-        XCTAssertEqual(plan.outbound.samples.count, 6)
         XCTAssertEqual(plan.outbound.samples.last?.point, click)
-        XCTAssertEqual(plan.returnPlan.samples.count, 6)
-        XCTAssertEqual(plan.returnPlan.samples.last?.point, start)
+        XCTAssertEqual(plan.returnPlan.samples.last?.point, departure)
+        XCTAssertNotEqual(plan.returnPlan.samples.last?.point, start)
         XCTAssertEqual(plan.holdMicroseconds, 0)
     }
 
@@ -59,6 +64,7 @@ final class ClickSequencePlannerTests: XCTestCase {
         isSmartMotionEnabled: Bool,
         clickMode: ClickMode,
         nextAlternatingButton: MouseButton = .left,
+        departurePosition: CGPoint = CGPoint(x: 300, y: 700),
         integers: [Int] = []
     ) throws -> ClickSequencePlan {
         try XCTUnwrap(ClickSequencePlanner().makePlan(
@@ -67,6 +73,7 @@ final class ClickSequencePlannerTests: XCTestCase {
             nextAlternatingButton: nextAlternatingButton,
             start: start,
             clickPosition: click,
+            departurePosition: departurePosition,
             bounds: bounds,
             random: ClickSequenceStubRandomSource(integers: integers)
         ))

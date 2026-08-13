@@ -374,20 +374,26 @@ public final class DriftAppModel: ObservableObject {
             publishMachineState()
             return
         }
-        let frames = displayGeometry.screenFrames()
-        guard let firstFrame = frames.first else {
+        let clickPoint = CGPoint(x: position.x, y: position.y)
+        guard let bounds = displayGeometry.visibleFrame(containing: clickPoint) else {
             lastError = "Invalid click position"
             machine.motionCancelled(at: date, initialDelay: initialDelay())
             publishMachineState()
             return
         }
-        let bounds = frames.dropFirst().reduce(firstFrame) { $0.union($1) }
+        let departurePosition = destinationPicker.pick(
+            in: bounds,
+            avoiding: clickPoint,
+            minimumDistance: 96,
+            random: random
+        )
         guard let sequence = clickPlanner.makePlan(
             isSmartMotionEnabled: settings.isSmartMotionEnabled,
             clickMode: settings.clickMode,
             nextAlternatingButton: runtimeStateStore.loadNextAlternatingButton(),
             start: start,
-            clickPosition: CGPoint(x: position.x, y: position.y),
+            clickPosition: clickPoint,
+            departurePosition: departurePosition,
             bounds: bounds,
             random: random
         ) else {

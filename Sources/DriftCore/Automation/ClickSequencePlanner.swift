@@ -13,6 +13,7 @@ public struct ClickSequencePlanner {
         nextAlternatingButton: MouseButton,
         start: CGPoint,
         clickPosition: CGPoint,
+        departurePosition: CGPoint,
         bounds: CGRect,
         random: DriftRandomSource
     ) -> ClickSequencePlan? {
@@ -43,7 +44,7 @@ public struct ClickSequencePlanner {
             isSilentModeEnabled: false,
             isSmartMotionEnabled: isSmartMotionEnabled,
             start: clickPosition,
-            destination: start,
+            destination: departurePosition,
             bounds: bounds,
             random: random
         )

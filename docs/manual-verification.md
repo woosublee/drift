@@ -33,12 +33,12 @@ Every item is intentionally unchecked until a user performs it on macOS.
 - [ ] **Independent Silent Mode and Smart Motion combinations**<br>
   Setup: grant Accessibility, leave Click Mode as None, set a short practical idle delay, and use a single connected display.<br>
   Action: observe at least one idle cycle for each combination: both off, Silent Mode only, Smart Motion only, and both on.<br>
-  Expected: both off uses bounded fixed movement and configured timing; Silent Mode only makes the minimal out-and-back movement without a noticeable visible jump; Smart Motion only follows bounded varied paths with varied timing; both on retains the minimal Silent movement while timing still varies.
+  Expected: both off uses distance-based linear movement lasting about 0.25–0.8 seconds with configured timing; Silent Mode only makes the minimal out-and-back movement without a noticeable visible jump; Smart Motion only follows bounded varied paths with varied timing; both on retains the minimal Silent movement while timing still varies.
 
 - [ ] **Smart Motion click variation**<br>
   Setup: select a safe click position in a non-destructive app and use a click mode.<br>
   Action: compare a completed click cycle with Smart Motion off and on.<br>
-  Expected: both settings move to the saved point, click, and return; Smart Motion off uses a fixed path with no hold, while Smart Motion on uses a varied path and a short varied hold before release.
+  Expected: both settings move to the saved point, click, and then depart to a safe random position on the same display; Smart Motion off uses a distance-based linear path with no hold, while Smart Motion on uses a varied path and a short varied hold before release.
 
 - [ ] **Physical mouse and keyboard idle reset**  
   Setup: activate Drift Dev and wait partway through `Start Moving After`.  
@@ -55,10 +55,10 @@ Every item is intentionally unchecked until a user performs it on macOS.
   Action: allow one successful sequence for each mode.  
   Expected: Left and Right generate their matching click; Alternating switches button only after a successful sequence.
 
-- [ ] **Return to original cursor position**  
-  Setup: set a safe click position away from the current pointer and select a click mode.  
-  Action: allow one click sequence to complete without input.  
-  Expected: Drift Dev moves to the saved point, clicks, and returns to the original pointer location.
+- [ ] **Move away after clicking**<br>
+  Setup: set a safe click position away from the current pointer and select a click mode.<br>
+  Action: allow one click sequence to complete without input.<br>
+  Expected: Drift Dev moves to the saved point, clicks, then moves to a different position within the same display's inset visible area and remains at least 96 points from the click position when the display permits it.
 
 - [ ] **Invalid or disconnected display click position**  
   Setup: save a click point on a secondary display, then disconnect that display.  

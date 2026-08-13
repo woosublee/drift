@@ -140,7 +140,7 @@ final class ClickIntegrationTests: XCTestCase {
         XCTAssertEqual(fixture.runtimeStore.nextButton, .left)
     }
 
-    func testClickSequenceUsesCurrentCursorAsReturnDestination() throws {
+    func testClickSequenceMovesToSafeRandomPositionOnClickDisplay() throws {
         var settings = DriftSettings.default
         settings.clickPosition = ClickPosition(x: 500, y: 400)
         try settings.setClickMode(.left)
@@ -149,7 +149,14 @@ final class ClickIntegrationTests: XCTestCase {
 
         fixture.model.handleTick(at: now.addingTimeInterval(60))
 
-        XCTAssertEqual(fixture.executor.clickPlans.first?.returnPlan.samples.last?.point, CGPoint(x: 100, y: 100))
+        XCTAssertEqual(
+            fixture.executor.clickPlans.first?.returnPlan.samples.last?.point,
+            CGPoint(x: 0, y: 0)
+        )
+        XCTAssertNotEqual(
+            fixture.executor.clickPlans.first?.returnPlan.samples.last?.point,
+            CGPoint(x: 100, y: 100)
+        )
     }
 
     private func awaitMainActorTurn() {

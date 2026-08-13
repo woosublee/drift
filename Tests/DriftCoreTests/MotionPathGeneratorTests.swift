@@ -24,12 +24,39 @@ final class MotionPathGeneratorTests: XCTestCase {
         ])
     }
 
-    func testFixedMotionUsesSixSamplesAndStaysInsideBounds() {
+    func testFixedMotionUsesDistanceBasedSixtyFPSPath() {
         let plan = makePlan(isSilentModeEnabled: false, isSmartMotionEnabled: false)
 
-        XCTAssertEqual(plan.samples.count, 6)
+        XCTAssertEqual(plan.samples.count, 35)
         XCTAssertEqual(plan.samples.last?.point, destination)
+        XCTAssertEqual(plan.samples.dropLast().map(\.delayAfterMicroseconds), Array(repeating: 16_667, count: 34))
+        XCTAssertEqual(plan.samples.last?.delayAfterMicroseconds, 0)
+        XCTAssertEqual(plan.samples.reduce(0) { $0 + Int($1.delayAfterMicroseconds) }, 566_678)
         XCTAssertTrue(plan.samples.allSatisfy { bounds.contains($0.point) })
+    }
+
+    func testFixedMotionClampsDurationForShortAndLongDistances() {
+        let shortPlan = MotionPathGenerator().makePlan(
+            isSilentModeEnabled: false,
+            isSmartMotionEnabled: false,
+            start: start,
+            destination: CGPoint(x: 101, y: 200),
+            bounds: bounds,
+            random: StubRandomSource(doubles: [])
+        )
+        let longPlan = MotionPathGenerator().makePlan(
+            isSilentModeEnabled: false,
+            isSmartMotionEnabled: false,
+            start: start,
+            destination: CGPoint(x: 900, y: 700),
+            bounds: bounds,
+            random: StubRandomSource(doubles: [])
+        )
+
+        XCTAssertEqual(shortPlan.samples.count, 16)
+        XCTAssertEqual(longPlan.samples.count, 49)
+        XCTAssertGreaterThanOrEqual(shortPlan.samples.reduce(0) { $0 + Int($1.delayAfterMicroseconds) }, 250_000)
+        XCTAssertGreaterThanOrEqual(longPlan.samples.reduce(0) { $0 + Int($1.delayAfterMicroseconds) }, 800_000)
     }
 
     func testSmartMotionClampsSamplesAndEndsAtDestination() {
