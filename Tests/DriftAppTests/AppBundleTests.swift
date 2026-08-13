@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class AppBundleTests: XCTestCase {
@@ -9,6 +10,7 @@ final class AppBundleTests: XCTestCase {
         XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "Drift")
         XCTAssertEqual(plist["LSUIElement"] as? Bool, true)
         XCTAssertEqual(plist["LSMinimumSystemVersion"] as? String, "13.0")
+        XCTAssertEqual(plist["CFBundleIconFile"] as? String, "AppIcon.icns")
         XCTAssertEqual(
             plist["NSAccessibilityAccessDescription"] as? String,
             "Drift needs Accessibility access to move the pointer."
@@ -47,6 +49,19 @@ final class AppBundleTests: XCTestCase {
         let package = try String(contentsOf: sourceRoot().appendingPathComponent("Package.swift"))
 
         XCTAssertFalse(package.contains("StoreKit"))
+    }
+
+    // Break caught: replacing the canonical icon with an invalid or differently sized export.
+    func testCanonicalAppIconIsA1024PixelRGBAImage() throws {
+        let data = try Data(
+            contentsOf: sourceRoot().appendingPathComponent("Resources/AppIcon-Source.png")
+        )
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+
+        XCTAssertEqual(bitmap.pixelsWide, 1_024)
+        XCTAssertEqual(bitmap.pixelsHigh, 1_024)
+        XCTAssertTrue(bitmap.hasAlpha)
+        XCTAssertEqual(bitmap.samplesPerPixel, 4)
     }
 
     private func sourceInfoPlist() throws -> [String: Any] {

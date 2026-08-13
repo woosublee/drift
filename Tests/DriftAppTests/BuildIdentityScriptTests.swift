@@ -67,6 +67,30 @@ final class BuildIdentityScriptTests: XCTestCase {
         XCTAssertFalse(verifier.contains("import base64"))
     }
 
+    // Break caught: assembling a valid app without embedding the declared Finder icon.
+    func testAssemblyEmbedsDeclaredAppIcon() throws {
+        let fixture = try assemblyFixture()
+        let result = try makeApp(in: fixture)
+
+        XCTAssertEqual(result.status, 0, result.output)
+        let app = fixture.buildDirectory.appendingPathComponent("Drift.app")
+        let resources = app.appendingPathComponent("Contents/Resources")
+        let icon = resources.appendingPathComponent("AppIcon.icns")
+        let attributes = try FileManager.default.attributesOfItem(atPath: icon.path)
+
+        XCTAssertGreaterThan(try XCTUnwrap(attributes[.size] as? NSNumber).intValue, 0)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: resources.appendingPathComponent("MenuBarIcon-Active.svg").path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: resources.appendingPathComponent("MenuBarIcon-Inactive.svg").path
+            )
+        )
+    }
+
     func testOptimizedPythonRejectsInvalidConfiguredProductionKeyDuringAssembly() throws {
         let fixture = try assemblyFixture()
         let result = try makeApp(
@@ -109,6 +133,67 @@ final class BuildIdentityScriptTests: XCTestCase {
 
         XCTAssertNotEqual(result.status, 0, result.output)
         XCTAssertTrue(result.output.contains(publicKeyValidationError), result.output)
+    }
+
+    // Break caught: Info.plist can declare an icon that is absent from the signed app bundle.
+    func testBundleVerifierRejectsMissingAppIcon() throws {
+        let fixture = try assemblyFixture()
+        let assembly = try makeApp(in: fixture)
+        XCTAssertEqual(assembly.status, 0, assembly.output)
+
+        let app = fixture.buildDirectory.appendingPathComponent("Drift.app")
+        try FileManager.default.removeItem(
+            at: app.appendingPathComponent("Contents/Resources/AppIcon.icns")
+        )
+        try FileManager.default.copyItem(
+            at: fixture.root.appendingPathComponent("Drift.entitlements"),
+            to: app.appendingPathComponent("Contents/signing-entitlements.plist")
+        )
+        let root = ProcessTestSupport.sourceRoot(filePath: #filePath)
+        let result = try ProcessTestSupport.run(
+            executable: "/bin/zsh",
+            arguments: [
+                root.appendingPathComponent("scripts/verify-app-bundle.sh").path,
+                app.path,
+                "production-configured",
+                "com.woosublee.drift",
+                "Drift"
+            ],
+            environment: fixture.environment,
+            currentDirectory: fixture.root
+        )
+
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("app icon does not exist"), result.output)
+    }
+
+    // Break caught: a self-signed hardened-runtime app can pass static codesign
+    // verification but crash in dyld when Sparkle is loaded without this entitlement.
+    func testBundleVerifierRejectsMissingLibraryValidationEntitlement() throws {
+        let fixture = try assemblyFixture()
+        let assembly = try makeApp(in: fixture)
+        XCTAssertEqual(assembly.status, 0, assembly.output)
+
+        let app = fixture.buildDirectory.appendingPathComponent("Drift.app")
+        let root = ProcessTestSupport.sourceRoot(filePath: #filePath)
+        let result = try ProcessTestSupport.run(
+            executable: "/bin/zsh",
+            arguments: [
+                root.appendingPathComponent("scripts/verify-app-bundle.sh").path,
+                app.path,
+                "production-configured",
+                "com.woosublee.drift",
+                "Drift"
+            ],
+            environment: fixture.environment,
+            currentDirectory: fixture.root
+        )
+
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(
+            result.output.contains("com.apple.security.cs.disable-library-validation must be true"),
+            "Verifier output: \(result.output.debugDescription)"
+        )
     }
 
     private func value(configuration: String, variant: String, field: String) throws -> String {
@@ -170,8 +255,26 @@ final class BuildIdentityScriptTests: XCTestCase {
         try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: framework, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: root.appendingPathComponent("Resources", isDirectory: true),
+            withIntermediateDirectories: true
+        )
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Makefile"), to: root.appendingPathComponent("Makefile"))
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Info.plist"), to: root.appendingPathComponent("Info.plist"))
+        for resource in [
+            "AppIcon-Source.png",
+            "MenuBarIcon-Active.svg",
+            "MenuBarIcon-Inactive.svg"
+        ] {
+            try fileManager.copyItem(
+                at: sourceRoot.appendingPathComponent("Resources/\(resource)"),
+                to: root.appendingPathComponent("Resources/\(resource)")
+            )
+        }
+        let entitlements = sourceRoot.appendingPathComponent("Drift.entitlements")
+        if fileManager.fileExists(atPath: entitlements.path) {
+            try fileManager.copyItem(at: entitlements, to: root.appendingPathComponent("Drift.entitlements"))
+        }
         let release = root.appendingPathComponent("release", isDirectory: true)
         try fileManager.createDirectory(at: release, withIntermediateDirectories: true)
         try fileManager.copyItem(
@@ -202,7 +305,30 @@ final class BuildIdentityScriptTests: XCTestCase {
         )
         _ = try writeExecutable(
             named: "codesign",
-            contents: "#!/bin/zsh\nif [[ \"$*\" == *\"-d -r-\"* ]]; then\n    print -r -- 'designated => identifier \"com.woosublee.drift\"' >&2\nfi\n",
+            contents: """
+            #!/bin/zsh
+            if [[ "$*" == *"-d -r-"* ]]; then
+                print -r -- 'designated => identifier "com.woosublee.drift"' >&2
+            elif [[ "$*" == *"--xml --entitlements -"* ]]; then
+                entitlements="${argv[-1]}/Contents/signing-entitlements.plist"
+                if [[ -f "$entitlements" ]]; then
+                    cat "$entitlements"
+                fi
+                exit 0
+            elif [[ "$*" == *"--entitlements"* ]]; then
+                source_entitlements=""
+                target="${argv[-1]}"
+                for (( index = 1; index <= $#; index++ )); do
+                    if [[ "${argv[index]}" == "--entitlements" ]]; then
+                        source_entitlements="${argv[index + 1]}"
+                    fi
+                done
+                if [[ -n "$source_entitlements" ]]; then
+                    mkdir -p "$target/Contents"
+                    cp "$source_entitlements" "$target/Contents/signing-entitlements.plist"
+                fi
+            fi
+            """,
             in: tools
         )
         _ = try writeExecutable(
@@ -213,6 +339,16 @@ final class BuildIdentityScriptTests: XCTestCase {
         _ = try writeExecutable(
             named: "ditto",
             contents: "#!/bin/zsh\nsource=\"${@: -2:1}\"\ndestination=\"${@: -1}\"\ncp -R \"$source\" \"$destination\"\n",
+            in: tools
+        )
+        _ = try writeExecutable(
+            named: "sips",
+            contents: "#!/bin/zsh\noutput=\"${argv[-1]}\"\nmkdir -p \"${output:h}\"\ncp \"$4\" \"$output\"\n",
+            in: tools
+        )
+        _ = try writeExecutable(
+            named: "iconutil",
+            contents: "#!/bin/zsh\noutput=\"${argv[-1]}\"\niconset=\"$3\"\nrequired=(icon_16x16.png icon_16x16@2x.png icon_32x32.png icon_32x32@2x.png icon_128x128.png icon_128x128@2x.png icon_256x256.png icon_256x256@2x.png icon_512x512.png icon_512x512@2x.png)\nfor name in $required; do [[ -s \"$iconset/$name\" ]] || exit 1; done\nprint -n 'fixture icns' > \"$output\"\n",
             in: tools
         )
 

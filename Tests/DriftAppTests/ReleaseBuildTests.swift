@@ -49,7 +49,25 @@ final class ReleaseBuildTests: XCTestCase {
                 "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
             )
         )
-        XCTAssertTrue(makefile.contains("codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""))
+        XCTAssertTrue(
+            makefile.contains(
+                "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \\\n\t\t\t--entitlements \"$(ENTITLEMENTS)\" \"$(APP_DIR)\""
+            )
+        )
+    }
+
+    // Break caught: self-signed app and Sparkle signatures have no Apple Team ID,
+    // so Hardened Runtime rejects Sparkle unless the host carries this entitlement.
+    func testReleaseEntitlementsAllowBundledSparkleToLoad() throws {
+        let entitlementsURL = sourceRoot.appendingPathComponent("Drift.entitlements")
+        let data = try Data(contentsOf: entitlementsURL)
+        let value = try PropertyListSerialization.propertyList(from: data, format: nil)
+        let entitlements = try XCTUnwrap(value as? [String: Any])
+
+        XCTAssertEqual(
+            entitlements["com.apple.security.cs.disable-library-validation"] as? Bool,
+            true
+        )
     }
 
     func testGitignoreExcludesReleaseBuildArtifacts() throws {

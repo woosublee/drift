@@ -6,14 +6,14 @@ import DriftCore
 public enum MenuBarPresentation {
     public static let popoverContentWidth: CGFloat = DriftPopoverMetrics.contentWidth
 
-    public static func symbolName(for phase: DriftPhase) -> String {
+    static func glyph(for phase: DriftPhase) -> MenuBarGlyph {
         switch phase {
         case .inactive:
-            "wind"
+            .asset(name: "MenuBarIcon-Inactive")
         case .permissionBlocked:
-            "exclamationmark.triangle"
+            .systemSymbol(name: "exclamationmark.triangle")
         case .waitingForIdle, .performingMotion, .waitingForRepeat, .suspendedBySystem:
-            "wind.circle.fill"
+            .asset(name: "MenuBarIcon-Active")
         }
     }
 
@@ -124,11 +124,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 
     private func updateSymbol(for phase: DriftPhase) {
-        let image = NSImage(
-            systemSymbolName: MenuBarPresentation.symbolName(for: phase),
+        statusItem.button?.image = MenuBarIconRenderer.image(
+            for: MenuBarPresentation.glyph(for: phase),
             accessibilityDescription: identity.displayName
         )
-        image?.isTemplate = true
-        statusItem.button?.image = image
     }
 }

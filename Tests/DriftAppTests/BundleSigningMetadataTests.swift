@@ -27,7 +27,7 @@ final class BundleSigningMetadataTests: XCTestCase {
         let cleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d com.apple.FinderInfo"
         let guardDefinition = "VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh"
         let guardInvocation = "$(SHELL) $(VERIFY_SIGNING_XATTRS) \"$(APP_DIR)\""
-        let appSigning = "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""
+        let appSigning = "--entitlements \"$(ENTITLEMENTS)\" \"$(APP_DIR)\""
 
         let frameworkIndex = try XCTUnwrap(makefile.range(of: frameworkSigning)?.lowerBound)
         let cleanupIndex = try XCTUnwrap(makefile.range(of: cleanup)?.lowerBound)
@@ -42,7 +42,7 @@ final class BundleSigningMetadataTests: XCTestCase {
 
     func testMakefileCleansSigningMetadataAfterFinalAppSigningBeforeGuardAndVerification() throws {
         let makefile = try String(contentsOf: sourceRoot.appendingPathComponent("Makefile"))
-        let appSigning = "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(APP_DIR)\""
+        let appSigning = "--entitlements \"$(ENTITLEMENTS)\" \"$(APP_DIR)\""
         let finderInfoCleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d com.apple.FinderInfo"
         let fileProviderCleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P'"
         let guardInvocation = "$(SHELL) $(VERIFY_SIGNING_XATTRS) \"$(APP_DIR)\""

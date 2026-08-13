@@ -16,17 +16,31 @@ product_name="$4"
 plist="$app/Contents/Info.plist"
 executable="$app/Contents/MacOS/Drift"
 framework="$app/Contents/Frameworks/Sparkle.framework"
+icon="$app/Contents/Resources/AppIcon.icns"
+active_menu_icon="$app/Contents/Resources/MenuBarIcon-Active.svg"
+inactive_menu_icon="$app/Contents/Resources/MenuBarIcon-Inactive.svg"
 
 [[ -d "$app" ]]
 [[ -f "$plist" ]]
 [[ -x "$executable" ]]
 [[ -d "$framework" ]]
+[[ -s "$icon" ]] || {
+    echo "app icon does not exist: $icon" >&2
+    exit 1
+}
+for menu_icon in "$active_menu_icon" "$inactive_menu_icon"; do
+    [[ -s "$menu_icon" ]] || {
+        echo "menu bar icon does not exist: $menu_icon" >&2
+        exit 1
+    }
+done
 
 test "${app:t}" = "$product_name.app"
 test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "$bundle_id"
 test "$(plutil -extract CFBundleName raw "$plist")" = "$product_name"
 test "$(plutil -extract CFBundleDisplayName raw "$plist")" = "$product_name"
 test "$(plutil -extract CFBundleExecutable raw "$plist")" = "Drift"
+test "$(plutil -extract CFBundleIconFile raw "$plist")" = "AppIcon.icns"
 test "$(plutil -extract NSAccessibilityAccessDescription raw "$plist")" = \
     "$product_name needs Accessibility access to move the pointer."
 
@@ -62,6 +76,15 @@ verify_public_key() {
     fi
 }
 
+verify_library_validation_entitlement() {
+    local entitlements
+    entitlements="$(codesign -d --xml --entitlements - "$app" 2>/dev/null)"
+    if ! print -r -- "$entitlements" | plutil -extract 'com\.apple\.security\.cs\.disable-library-validation' raw - 2>/dev/null | grep -Fxq true; then
+        echo "com.apple.security.cs.disable-library-validation must be true" >&2
+        return 1
+    fi
+}
+
 case "$mode" in
     development)
         ! plutil -extract SUFeedURL raw "$plist" >/dev/null 2>&1
@@ -70,10 +93,12 @@ case "$mode" in
     production-unconfigured)
         ! plutil -extract SUFeedURL raw "$plist" >/dev/null 2>&1
         verify_public_key
+        verify_library_validation_entitlement
         ;;
     production-configured)
         test "$(plutil -extract SUFeedURL raw "$plist" | cut -c1-8)" = "https://"
         verify_public_key
+        verify_library_validation_entitlement
         ;;
     *)
         echo "invalid update mode: $mode" >&2
