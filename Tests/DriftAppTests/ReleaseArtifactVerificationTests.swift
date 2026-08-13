@@ -225,6 +225,11 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 to: fixture.appendingPathComponent(path)
             )
         }
+        try #"{"marketingVersion":"0.1.0","buildNumber":1}"#.write(
+            to: release.appendingPathComponent("version.json"),
+            atomically: true,
+            encoding: .utf8
+        )
         for script in [
             "release-version-lib.sh",
             "resolve-release-version.sh",
@@ -241,6 +246,8 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         }
 
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Info.plist"), to: fixture.appendingPathComponent("Info.plist"))
+        try replacePlistString("CFBundleShortVersionString", with: "0.1.0", at: fixture.appendingPathComponent("Info.plist"))
+        try replacePlistString("CFBundleVersion", with: "1", at: fixture.appendingPathComponent("Info.plist"))
         try replacePlistString("SUPublicEDKey", with: testPublicKey, at: fixture.appendingPathComponent("Info.plist"))
 
         let validAppIcon = try makeValidAppIcon(in: fixture)

@@ -81,6 +81,11 @@ final class ReleasePublishingTests: XCTestCase {
         for path in ["Info.plist", "release/version.json"] {
             try fileManager.copyItem(at: sourceRoot.appendingPathComponent(path), to: fixture.appendingPathComponent(path))
         }
+        try #"{"marketingVersion":"0.1.0","buildNumber":1}"#.write(
+            to: release.appendingPathComponent("version.json"),
+            atomically: true,
+            encoding: .utf8
+        )
         for script in [
             "release-version-lib.sh",
             "resolve-release-version.sh",

@@ -61,6 +61,11 @@ final class ReleasePackagingTests: XCTestCase {
             at: sourceRoot.appendingPathComponent("release/version.json"),
             to: release.appendingPathComponent("version.json")
         )
+        try #"{"marketingVersion":"0.1.0","buildNumber":1}"#.write(
+            to: release.appendingPathComponent("version.json"),
+            atomically: true,
+            encoding: .utf8
+        )
         for script in ["release-version-lib.sh", "resolve-release-version.sh"] {
             let destination = scripts.appendingPathComponent(script)
             try fileManager.copyItem(
