@@ -48,6 +48,17 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertFalse(notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
+    // Break caught: GitHub accepts zsh only as a custom shell format string containing the script placeholder.
+    func testWorkflowUsesRunnableZshFormatString() throws {
+        let workflow = try sourceWorkflow()
+        let invalidPattern = #"(?m)^\s*shell:\s*zsh\s*$"#
+        let invalidExpression = try NSRegularExpression(pattern: invalidPattern)
+        let range = NSRange(workflow.startIndex..., in: workflow)
+
+        XCTAssertNil(invalidExpression.firstMatch(in: workflow, range: range))
+        XCTAssertTrue(workflow.contains("shell: zsh {0}"))
+    }
+
     // Break caught: job-level env cannot resolve the runner context, so GitHub rejects the workflow before any step starts.
     func testWorkflowInitializesTemporaryKeychainPathAtRuntime() throws {
         let workflow = try sourceWorkflow()

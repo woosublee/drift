@@ -35,7 +35,7 @@ jobs:
 
       - name: Resolve release and publish mode
         id: release
-        shell: zsh
+        shell: zsh {0}
         run: |
           set -euo pipefail
           RELEASE_TAG="$(scripts/resolve-release-version.sh tag)"
@@ -64,7 +64,7 @@ jobs:
           print -r -- "publish_requested=$publish_requested" >> "$GITHUB_OUTPUT"
 
       - name: Import temporary signing identity
-        shell: zsh
+        shell: zsh {0}
         run: |
           set -euo pipefail
           [[ -n "$CERTIFICATE_BASE64" ]] || { print -u2 -r -- 'DRIFT_CERTIFICATE_BASE64 secret is required'; exit 1; }
@@ -95,7 +95,7 @@ jobs:
           security default-keychain -d user -s "$KEYCHAIN_PATH"
 
       - name: Test and verify release artifacts
-        shell: zsh
+        shell: zsh {0}
         run: |
           set -euo pipefail
           swift test
@@ -115,7 +115,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: steps.release.outputs.publish_requested == 'true'
-        shell: zsh
+        shell: zsh {0}
         run: |
           set -euo pipefail
           scripts/publish-github-release.sh \
@@ -125,7 +125,7 @@ jobs:
 
       - name: Verify published GitHub Release
         if: steps.release.outputs.publish_requested == 'true'
-        shell: zsh
+        shell: zsh {0}
         run: |
           set -euo pipefail
           scripts/verify-published-release.sh \
@@ -134,7 +134,7 @@ jobs:
 
       - name: Remove temporary signing identity
         if: always()
-        shell: zsh
+        shell: zsh {0}
         run: |
           set +e
           if [[ -n "${ORIGINAL_KEYCHAINS:-}" ]]; then
