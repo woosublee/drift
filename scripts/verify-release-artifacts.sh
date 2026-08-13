@@ -6,6 +6,7 @@ repo_root="$script_dir:h"
 : "${CODESIGN:=codesign}"
 : "${GIT:=git}"
 : "${HDIUTIL:=hdiutil}"
+: "${ICONUTIL:=iconutil}"
 : "${LIPO:=lipo}"
 : "${OPENSSL:=openssl}"
 : "${PLUTIL:=plutil}"
@@ -102,6 +103,20 @@ verify_public_key() {
     print -r -- "$key"
 }
 
+verify_app_icon() {
+    local icon="$1"
+    local label="$2"
+    local validation_directory iconset
+    validation_directory="$(mktemp -d "${TMPDIR:-/tmp}/drift-release-verification-icon.XXXXXX")"
+    iconset="$validation_directory/AppIcon.iconset"
+    if ! "$ICONUTIL" --convert iconset "$icon" --output "$iconset" >/dev/null 2>&1; then
+        rm -rf "$validation_directory"
+        release_fail "$label icon is not a valid ICNS"
+        return 1
+    fi
+    rm -rf "$validation_directory"
+}
+
 verify_app_metadata() {
     local candidate_app="$1"
     local label="$2"
@@ -118,6 +133,7 @@ verify_app_metadata() {
         release_fail "$label icon does not exist"
         return 1
     }
+    verify_app_icon "$icon" "$label" || return 1
     for menu_icon in "$active_menu_icon" "$inactive_menu_icon"; do
         [[ -s "$menu_icon" ]] || {
             release_fail "$label menu bar icon does not exist"

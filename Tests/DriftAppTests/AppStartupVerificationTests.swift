@@ -30,6 +30,23 @@ final class AppStartupVerificationTests: XCTestCase {
         XCTAssertEqual(result.status, 0, result.output)
     }
 
+    func testVerifierRejectsInvalidGracePeriodsWithUsageError() throws {
+        let fixture = try makeFixture(executable: """
+        #!/bin/zsh
+        exit 0
+        """)
+
+        for gracePeriod in ["not-a-number", "0", "-1", "nan", "inf"] {
+            let result = try runVerifier(for: fixture, graceSeconds: gracePeriod)
+
+            XCTAssertEqual(result.status, 2, "grace period: \(gracePeriod)\n\(result.output)")
+            XCTAssertTrue(
+                result.output.contains("STARTUP_GRACE_SECONDS must be a finite positive number"),
+                "grace period: \(gracePeriod)\n\(result.output)"
+            )
+        }
+    }
+
     private var sourceRoot: URL {
         ProcessTestSupport.sourceRoot(filePath: #filePath)
     }
@@ -53,14 +70,17 @@ final class AppStartupVerificationTests: XCTestCase {
         return app
     }
 
-    private func runVerifier(for app: URL) throws -> TestProcessResult {
+    private func runVerifier(
+        for app: URL,
+        graceSeconds: String = "1"
+    ) throws -> TestProcessResult {
         try ProcessTestSupport.run(
             executable: "/bin/zsh",
             arguments: [
                 sourceRoot.appendingPathComponent("scripts/verify-app-startup.sh").path,
                 app.path
             ],
-            environment: ["STARTUP_GRACE_SECONDS": "1"],
+            environment: ["STARTUP_GRACE_SECONDS": graceSeconds],
             currentDirectory: sourceRoot
         )
     }

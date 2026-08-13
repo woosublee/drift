@@ -17,12 +17,26 @@ log_file="$(mktemp "${TMPDIR:-/tmp}/drift-startup.XXXXXX")"
 trap 'rm -f "$log_file"' EXIT
 
 python3 - "$executable" "$grace_seconds" "$log_file" <<'PY'
+import math
 import subprocess
 import sys
 import time
 
 executable = sys.argv[1]
-grace_seconds = float(sys.argv[2])
+try:
+    grace_seconds = float(sys.argv[2])
+except ValueError:
+    print(
+        "STARTUP_GRACE_SECONDS must be a finite positive number",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+if not math.isfinite(grace_seconds) or grace_seconds <= 0:
+    print(
+        "STARTUP_GRACE_SECONDS must be a finite positive number",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 log_path = sys.argv[3]
 process = None
 

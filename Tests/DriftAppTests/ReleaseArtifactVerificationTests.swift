@@ -153,6 +153,20 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertTrue(result.output.contains("mounted DMG app icon does not exist"), result.output)
     }
 
+    // Break caught: a non-empty arbitrary file can satisfy an existence check without being a valid ICNS.
+    func testVerifierRejectsCorruptedAppIcon() throws {
+        let fixture = try makeArtifactVerificationFixture()
+        try Data("not an icns".utf8).write(
+            to: fixture.appendingPathComponent(
+                "build/release/Drift.app/Contents/Resources/AppIcon.icns"
+            )
+        )
+        let result = try runVerifier(in: fixture)
+
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("release app icon is not a valid ICNS"), result.output)
+    }
+
     // Break caught: Make invokes the aggregate verifier directly, so its tracked mode must remain executable.
     func testSourceVerifierIsExecutable() throws {
         let attributes = try FileManager.default.attributesOfItem(
@@ -229,6 +243,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         try fileManager.copyItem(at: sourceRoot.appendingPathComponent("Info.plist"), to: fixture.appendingPathComponent("Info.plist"))
         try replacePlistString("SUPublicEDKey", with: testPublicKey, at: fixture.appendingPathComponent("Info.plist"))
 
+        let validAppIcon = try makeValidAppIcon(in: fixture)
         for artifactApp in [app, mountedApp] {
             let info = artifactApp.appendingPathComponent("Contents/Info.plist")
             try fileManager.copyItem(at: fixture.appendingPathComponent("Info.plist"), to: info)
@@ -245,7 +260,8 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             """.write(to: executable, atomically: true, encoding: .utf8)
             try makeExecutable(executable)
             let resources = artifactApp.appendingPathComponent("Contents/Resources")
-            try Data("fixture app icon".utf8).write(
+            try fileManager.copyItem(
+                at: validAppIcon,
                 to: resources.appendingPathComponent("AppIcon.icns")
             )
             try Data("fixture active menu icon".utf8).write(
@@ -421,6 +437,7 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 "MOUNTED_APP": fixture.appendingPathComponent("mounted-app/Drift.app").path,
                 "MOUNTED_EXECUTABLE": fixture.appendingPathComponent("mounted-app/Drift.app/Contents/MacOS/Drift").path,
                 "OPENSSL": fixture.appendingPathComponent("tools/openssl").path,
+                "ICONUTIL": "/usr/bin/iconutil",
                 "SPARKLE_PRIVATE_KEY": testPrivateKey,
                 "SPARKLE_SIGN_UPDATE": fixture.appendingPathComponent("tools/sign_update").path,
                 "VERIFY_SIGNATURE": verifySignature ? "1" : "0",
@@ -446,6 +463,22 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             "tag": "v\(version)",
             "dmgName": "Drift-\(version).dmg"
         ]
+    }
+
+    private func makeValidAppIcon(in fixture: URL) throws -> URL {
+        let iconset = fixture.appendingPathComponent("Fixture.iconset", isDirectory: true)
+        let icon = fixture.appendingPathComponent("Fixture.icns")
+        try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            at: sourceRoot.appendingPathComponent("Resources/AppIcon-Source.png"),
+            to: iconset.appendingPathComponent("icon_512x512@2x.png")
+        )
+        let result = try ProcessTestSupport.run(
+            executable: "/usr/bin/iconutil",
+            arguments: ["-c", "icns", iconset.path, "-o", icon.path]
+        )
+        XCTAssertEqual(result.status, 0, result.output)
+        return icon
     }
 
     private func makeAppcast(length: Int) -> String {
