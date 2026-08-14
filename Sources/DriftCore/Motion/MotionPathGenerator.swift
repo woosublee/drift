@@ -28,9 +28,23 @@ public struct MotionPathGenerator {
     }
 
     private func standardPlan(start: CGPoint, destination: CGPoint, bounds: CGRect) -> MotionPlan {
-        let samples = (1...6).map { index -> MotionSample in
-            let point = clamp(interpolate(start: start, end: destination, t: CGFloat(index) / 6), to: bounds)
-            return MotionSample(point: point, delayAfterMicroseconds: index == 6 ? 0 : 16_667)
+        let distance = hypot(destination.x - start.x, destination.y - start.y)
+        let duration = min(0.8, max(0.25, Double(distance) / 900))
+        let intervalCount = Int((duration * 60).rounded(.up))
+        let sampleCount = intervalCount + 1
+        let samples = (1...sampleCount).map { index -> MotionSample in
+            let point = clamp(
+                interpolate(
+                    start: start,
+                    end: destination,
+                    t: CGFloat(index) / CGFloat(sampleCount)
+                ),
+                to: bounds
+            )
+            return MotionSample(
+                point: point,
+                delayAfterMicroseconds: index == sampleCount ? 0 : 16_667
+            )
         }
         return MotionPlan(samples: samples)
     }
