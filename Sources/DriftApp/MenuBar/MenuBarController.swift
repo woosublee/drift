@@ -86,6 +86,15 @@ final class PopoverCloseCoordinator {
         prepareForExplicitClose()
         forceClose()
     }
+
+    func closeForApplicationDeactivation(
+        cancelSelection: () -> Void
+    ) {
+        if isSelectionInProgress() {
+            cancelSelection()
+        }
+        closeExplicitly()
+    }
 }
 
 @MainActor
@@ -125,11 +134,6 @@ final class PopoverContentSizeCoordinator {
         guard contentHeight.isFinite, contentHeight > 0 else { return }
         latestContentHeight = contentHeight
         applyLatestSize()
-    }
-
-    func refresh() {
-        guard latestContentHeight != nil else { return }
-        scheduleUpdate()
     }
 
     func refreshImmediately() {
@@ -267,7 +271,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         applicationEventObserver.start(
             onDeactivate: { [weak self] in
                 guard let self, popover.isShown else { return }
-                closeCoordinator.closeExplicitly()
+                closeCoordinator.closeForApplicationDeactivation {
+                    model.cancelClickPositionSelection()
+                }
             },
             onDisplayConfigurationChange: { [weak self] in
                 guard let self, popover.isShown else { return }

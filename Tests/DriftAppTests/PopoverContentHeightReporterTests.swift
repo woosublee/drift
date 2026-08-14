@@ -6,13 +6,32 @@ import XCTest
 
 @MainActor
 final class PopoverContentHeightReporterTests: XCTestCase {
-    func testScrollableContentReportsExpansionBeyondCurrentViewport() {
+    func testScrollableContentReportsExpansionBeyondCurrentViewport() throws {
         let model = ExpandablePopoverModel()
-        var reportedHeights: [CGFloat] = []
+        let collapsedExpectation = expectation(
+            description: "Reports collapsed content height"
+        )
+        let expandedExpectation = expectation(
+            description: "Reports expanded content height"
+        )
+        var reportedCollapsedHeight: CGFloat?
+        var reportedExpandedHeight: CGFloat?
         let controller = NSHostingController(
             rootView: ExpandableScrollablePopoverContent(
                 model: model,
-                onContentHeightChange: { reportedHeights.append($0) }
+                onContentHeightChange: { height in
+                    if model.isExpanded {
+                        guard reportedExpandedHeight == nil,
+                              height > (reportedCollapsedHeight ?? 0) else {
+                            return
+                        }
+                        reportedExpandedHeight = height
+                        expandedExpectation.fulfill()
+                    } else if reportedCollapsedHeight == nil {
+                        reportedCollapsedHeight = height
+                        collapsedExpectation.fulfill()
+                    }
+                }
             )
         )
         let window = NSWindow(contentViewController: controller)
@@ -20,18 +39,16 @@ final class PopoverContentHeightReporterTests: XCTestCase {
         window.orderFront(nil)
         defer { window.orderOut(nil) }
         controller.view.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        let collapsedHeight = try? XCTUnwrap(reportedHeights.last)
+        wait(for: [collapsedExpectation], timeout: 1)
 
         model.isExpanded = true
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         controller.view.layoutSubtreeIfNeeded()
+        wait(for: [expandedExpectation], timeout: 1)
 
-        let expandedHeight = try? XCTUnwrap(reportedHeights.last)
-        XCTAssertNotNil(collapsedHeight)
-        XCTAssertNotNil(expandedHeight)
-        XCTAssertGreaterThan(expandedHeight ?? 0, collapsedHeight ?? 0)
-        XCTAssertGreaterThan(expandedHeight ?? 0, controller.view.frame.height)
+        let collapsedHeight = try XCTUnwrap(reportedCollapsedHeight)
+        let expandedHeight = try XCTUnwrap(reportedExpandedHeight)
+        XCTAssertGreaterThan(expandedHeight, collapsedHeight)
+        XCTAssertGreaterThan(expandedHeight, controller.view.frame.height)
     }
 }
 

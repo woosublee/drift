@@ -45,4 +45,34 @@ final class PopoverCloseCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(closeCount, 1)
     }
+
+    func testApplicationDeactivationCancelsSelectionBeforeResetAndClose() {
+        var events: [String] = []
+        let coordinator = PopoverCloseCoordinator(
+            isSelectionInProgress: { true },
+            prepareForExplicitClose: { events.append("reset") },
+            forceClose: { events.append("close") }
+        )
+
+        coordinator.closeForApplicationDeactivation {
+            events.append("cancel")
+        }
+
+        XCTAssertEqual(events, ["cancel", "reset", "close"])
+    }
+
+    func testApplicationDeactivationClosesWithoutCancellationOutsideSelection() {
+        var events: [String] = []
+        let coordinator = PopoverCloseCoordinator(
+            isSelectionInProgress: { false },
+            prepareForExplicitClose: { events.append("reset") },
+            forceClose: { events.append("close") }
+        )
+
+        coordinator.closeForApplicationDeactivation {
+            events.append("cancel")
+        }
+
+        XCTAssertEqual(events, ["reset", "close"])
+    }
 }

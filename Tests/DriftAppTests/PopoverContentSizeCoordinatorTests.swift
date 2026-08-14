@@ -162,30 +162,4 @@ final class PopoverContentSizeCoordinatorTests: XCTestCase {
         )
     }
 
-    func testRefreshRecalculatesLatestHeightForCurrentScreen() {
-        var availableHeight: CGFloat = 1_000
-        var currentSize = NSSize(width: 410, height: 500)
-        var pendingUpdate: (() -> Void)?
-        var appliedSizes: [NSSize] = []
-        let coordinator = PopoverContentSizeCoordinator(
-            currentSize: { currentSize },
-            availableHeight: { availableHeight },
-            schedule: { pendingUpdate = $0 },
-            applySize: {
-                currentSize = $0
-                appliedSizes.append($0)
-            }
-        )
-
-        coordinator.contentHeightDidChange(900)
-        pendingUpdate?()
-        availableHeight = 700
-        coordinator.refresh()
-        pendingUpdate?()
-
-        XCTAssertEqual(
-            appliedSizes,
-            [NSSize(width: 410, height: 900), NSSize(width: 410, height: 668)]
-        )
-    }
 }

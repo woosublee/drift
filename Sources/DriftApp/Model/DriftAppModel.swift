@@ -198,6 +198,11 @@ public final class DriftAppModel: ObservableObject {
         }
     }
 
+    public func cancelClickPositionSelection() {
+        guard isSelectingClickPosition else { return }
+        clickPositionSelector.cancel()
+    }
+
     public func clearClickPosition() {
         clickPositionSelector.cancel()
         pendingClickMode = nil
