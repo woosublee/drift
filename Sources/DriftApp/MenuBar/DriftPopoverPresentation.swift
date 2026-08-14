@@ -95,6 +95,10 @@ public enum DriftPopoverPresentation {
         return "(\(Int(position.x.rounded())), \(Int(position.y.rounded())))"
     }
 
+    public static func clickPositionControlsEnabled(for mode: ClickMode) -> Bool {
+        mode != .none
+    }
+
     public static func showsDailyStopDetails(
         for settings: DailyStopSettings
     ) -> Bool {
@@ -140,21 +144,14 @@ public enum DriftPopoverPresentation {
         return .application
     }
 
-    public static func loginItemMessage(for status: LoginItemStatus) -> String? {
-        switch status {
-        case .enabled, .disabled:
-            nil
-        case .requiresApproval:
-            "Launch at Login requires approval in System Settings"
-        case .unavailable:
-            "Launch at Login is unavailable"
-        }
-    }
-
     public static let startMovingAfterAccessibilityLabel = "Start Moving After"
     public static let moveEveryAccessibilityLabel = "Move Every"
     public static let smartMotionAccessibilityLabel = "Smart Motion"
     public static let silentModeAccessibilityLabel = "Silent Mode"
+    public static let smartMotionHelpText =
+        "Uses natural curved paths and varied timing for visible idle movement and travel to and away from clicks. It works independently of Silent Mode."
+    public static let silentModeHelpText =
+        "When Click Mode is None, Drift sends a tiny 0.01-point out-and-back pointer movement instead of moving across the screen. Click modes still move to the saved position, click, and move away."
     public static let clickModeAccessibilityLabel = "Click Mode"
     public static let deactivateAtTimeAccessibilityLabel = "Deactivate At Time"
 
@@ -174,14 +171,10 @@ public enum DriftPopoverPresentation {
 
     public static func behaviorErrorMessage(
         genericError: String?,
-        shortcutError: GlobalShortcutError?,
-        loginItemStatus: LoginItemStatus
+        shortcutError: GlobalShortcutError?
     ) -> String? {
         if let shortcutError {
             return shortcutErrorMessage(shortcutError)
-        }
-        if let loginMessage = loginItemMessage(for: loginItemStatus) {
-            return loginMessage
         }
         return genericError
     }

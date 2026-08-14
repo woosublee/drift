@@ -105,6 +105,13 @@ final class DriftPopoverPresentationTests: XCTestCase {
         )
     }
 
+    func testClickPositionControlsAreEnabledOnlyWhenClickModeIsActive() {
+        XCTAssertFalse(DriftPopoverPresentation.clickPositionControlsEnabled(for: .none))
+        XCTAssertTrue(DriftPopoverPresentation.clickPositionControlsEnabled(for: .left))
+        XCTAssertTrue(DriftPopoverPresentation.clickPositionControlsEnabled(for: .right))
+        XCTAssertTrue(DriftPopoverPresentation.clickPositionControlsEnabled(for: .alternating))
+    }
+
     func testGenericErrorsAreRoutedToTheirResponsibleCard() {
         XCTAssertEqual(
             DriftPopoverPresentation.errorSection(for: "Invalid click position"),
@@ -125,19 +132,6 @@ final class DriftPopoverPresentationTests: XCTestCase {
             .application
         )
         XCTAssertNil(DriftPopoverPresentation.errorSection(for: nil))
-    }
-
-    func testLoginItemStatusMessageIsShownOnlyForExceptionalStates() {
-        XCTAssertNil(DriftPopoverPresentation.loginItemMessage(for: .enabled))
-        XCTAssertNil(DriftPopoverPresentation.loginItemMessage(for: .disabled))
-        XCTAssertEqual(
-            DriftPopoverPresentation.loginItemMessage(for: .requiresApproval),
-            "Launch at Login requires approval in System Settings"
-        )
-        XCTAssertEqual(
-            DriftPopoverPresentation.loginItemMessage(for: .unavailable),
-            "Launch at Login is unavailable"
-        )
     }
 
     func testPopoverUsesNativeMaterialWithSubtleCardSurfaces() {
@@ -208,6 +202,17 @@ final class DriftPopoverPresentationTests: XCTestCase {
         )
     }
 
+    func testMotionHelpTextExplainsIndependentRuntimeBehavior() {
+        XCTAssertEqual(
+            DriftPopoverPresentation.smartMotionHelpText,
+            "Uses natural curved paths and varied timing for visible idle movement and travel to and away from clicks. It works independently of Silent Mode."
+        )
+        XCTAssertEqual(
+            DriftPopoverPresentation.silentModeHelpText,
+            "When Click Mode is None, Drift sends a tiny 0.01-point out-and-back pointer movement instead of moving across the screen. Click modes still move to the saved position, click, and move away."
+        )
+    }
+
     func testWeekdayAccessibilityNamesAndSelectionValuesAreUnambiguous() {
         let names = [
             "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
@@ -229,38 +234,33 @@ final class DriftPopoverPresentationTests: XCTestCase {
         )
     }
 
-    func testBehaviorErrorPresentationUsesOneRelevantMessage() {
+    func testBehaviorErrorPresentationUsesOnlyAttemptDerivedMessages() {
         XCTAssertEqual(
             DriftPopoverPresentation.behaviorErrorMessage(
                 genericError: "Shortcut registration failed",
-                shortcutError: .registrationFailed(-1),
-                loginItemStatus: .disabled
+                shortcutError: .registrationFailed(-1)
             ),
             "This shortcut is unavailable. Record a different combination."
         )
         XCTAssertEqual(
             DriftPopoverPresentation.behaviorErrorMessage(
                 genericError: "Launch at Login requires approval in System Settings",
-                shortcutError: nil,
-                loginItemStatus: .requiresApproval
+                shortcutError: nil
             ),
             "Launch at Login requires approval in System Settings"
         )
         XCTAssertEqual(
             DriftPopoverPresentation.behaviorErrorMessage(
                 genericError: "Shortcut registration failed",
-                shortcutError: nil,
-                loginItemStatus: .disabled
+                shortcutError: nil
             ),
             "Shortcut registration failed"
         )
-        XCTAssertEqual(
+        XCTAssertNil(
             DriftPopoverPresentation.behaviorErrorMessage(
                 genericError: nil,
-                shortcutError: nil,
-                loginItemStatus: .unavailable
-            ),
-            "Launch at Login is unavailable"
+                shortcutError: nil
+            )
         )
     }
 }

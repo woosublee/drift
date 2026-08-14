@@ -1,3 +1,4 @@
+import Combine
 import CoreGraphics
 import XCTest
 import DriftCore
@@ -38,6 +39,129 @@ final class ModelControlIntegrationTests: XCTestCase {
         XCTAssertEqual(fixture.model.loginItemStatus, .requiresApproval)
     }
 
+    func testPassiveUnavailableStatusDoesNotCreateError() {
+        let login = ControlLoginFake(status: .unavailable)
+        let fixture = makeFixture(login: login)
+
+        fixture.model.start()
+
+        XCTAssertFalse(fixture.model.settings.launchAtLogin)
+        XCTAssertEqual(fixture.model.loginItemStatus, .unavailable)
+        XCTAssertNil(fixture.model.lastError)
+    }
+
+    func testUnavailableMismatchUsesGenericChangeFailure() {
+        let login = ControlLoginFake(status: .disabled, result: .success(.unavailable))
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+
+        fixture.model.setLaunchAtLogin(true)
+
+        XCTAssertFalse(fixture.model.settings.launchAtLogin)
+        XCTAssertEqual(fixture.model.loginItemStatus, .unavailable)
+        XCTAssertEqual(fixture.model.lastError, "Launch at Login could not be changed")
+    }
+
+    func testRefreshAdoptsExternalApprovalAndClearsResolvedFeedback() {
+        let login = ControlLoginFake(
+            status: .requiresApproval,
+            result: .failure(.requiresApproval)
+        )
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+        fixture.model.setLaunchAtLogin(true)
+        XCTAssertEqual(
+            fixture.model.lastError,
+            "Launch at Login requires approval in System Settings"
+        )
+
+        login.observed = .enabled
+        fixture.model.refreshLoginItemStatus()
+
+        XCTAssertTrue(fixture.model.settings.launchAtLogin)
+        XCTAssertEqual(fixture.model.loginItemStatus, .enabled)
+        XCTAssertEqual(fixture.store.saved?.launchAtLogin, true)
+        XCTAssertNil(fixture.model.lastError)
+    }
+
+    func testRefreshAdoptsExternalDisable() {
+        let login = ControlLoginFake(status: .enabled)
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+
+        login.observed = .disabled
+        fixture.model.refreshLoginItemStatus()
+
+        XCTAssertFalse(fixture.model.settings.launchAtLogin)
+        XCTAssertEqual(fixture.model.loginItemStatus, .disabled)
+        XCTAssertEqual(fixture.store.saved?.launchAtLogin, false)
+    }
+
+    func testRefreshWithUnchangedObservedStatePublishesNothing() {
+        let login = ControlLoginFake(status: .disabled)
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+        var settingsEmissionCount = 0
+        var statusEmissionCount = 0
+        var cancellables: Set<AnyCancellable> = []
+        fixture.model.$settings.dropFirst().sink { _ in
+            settingsEmissionCount += 1
+        }.store(in: &cancellables)
+        fixture.model.$loginItemStatus.dropFirst().sink { _ in
+            statusEmissionCount += 1
+        }.store(in: &cancellables)
+
+        fixture.model.refreshLoginItemStatus()
+
+        XCTAssertEqual(settingsEmissionCount, 0)
+        XCTAssertEqual(statusEmissionCount, 0)
+        XCTAssertEqual(fixture.store.saveCount, 0)
+    }
+
+    func testRefreshStatusOnlyChangeDoesNotRepublishEquivalentSettings() {
+        let login = ControlLoginFake(status: .disabled)
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+        var settingsEmissionCount = 0
+        var statusEmissionCount = 0
+        var cancellables: Set<AnyCancellable> = []
+        fixture.model.$settings.dropFirst().sink { _ in
+            settingsEmissionCount += 1
+        }.store(in: &cancellables)
+        fixture.model.$loginItemStatus.dropFirst().sink { _ in
+            statusEmissionCount += 1
+        }.store(in: &cancellables)
+        login.observed = .unavailable
+
+        fixture.model.refreshLoginItemStatus()
+
+        XCTAssertEqual(settingsEmissionCount, 0)
+        XCTAssertEqual(statusEmissionCount, 1)
+        XCTAssertEqual(fixture.store.saveCount, 0)
+    }
+
+    func testRefreshExternalEnablePublishesAndPersistsEachChangedValueOnce() {
+        let login = ControlLoginFake(status: .disabled)
+        let fixture = makeFixture(login: login)
+        fixture.model.start()
+        var settingsEmissionCount = 0
+        var statusEmissionCount = 0
+        var cancellables: Set<AnyCancellable> = []
+        fixture.model.$settings.dropFirst().sink { _ in
+            settingsEmissionCount += 1
+        }.store(in: &cancellables)
+        fixture.model.$loginItemStatus.dropFirst().sink { _ in
+            statusEmissionCount += 1
+        }.store(in: &cancellables)
+        login.observed = .enabled
+
+        fixture.model.refreshLoginItemStatus()
+
+        XCTAssertEqual(settingsEmissionCount, 1)
+        XCTAssertEqual(statusEmissionCount, 1)
+        XCTAssertEqual(fixture.store.saveCount, 1)
+    }
+
     func testFailedDisableKeepsEnabledLaunchAtLoginSettingInSyncWithObservedStatus() {
         let login = ControlLoginFake(status: .enabled, result: .failure(.operationFailed))
         let fixture = makeFixture(login: login)
@@ -61,10 +185,7 @@ final class ModelControlIntegrationTests: XCTestCase {
         XCTAssertTrue(fixture.model.settings.launchAtLogin)
         XCTAssertEqual(fixture.store.saved?.launchAtLogin, true)
         XCTAssertEqual(fixture.model.loginItemStatus, .enabled)
-        XCTAssertEqual(
-            fixture.model.lastError,
-            "Launch at Login state did not match the requested setting"
-        )
+        XCTAssertEqual(fixture.model.lastError, "Launch at Login could not be changed")
     }
 
     func testClearClickPositionPreservesUnrelatedLaunchAtLoginError() {
@@ -205,7 +326,7 @@ final class ModelControlIntegrationTests: XCTestCase {
 }
 
 @MainActor private struct ControlFixture { let model: DriftAppModel; let store: ControlSettingsStore; let executor: ControlExecutor }
-private final class ControlSettingsStore: SettingsStoring { var settings = DriftSettings.default; var saved: DriftSettings?; func loadSettings() -> DriftSettings { settings }; func saveSettings(_ settings: DriftSettings) throws { self.settings = settings; saved = settings } }
+private final class ControlSettingsStore: SettingsStoring { var settings = DriftSettings.default; var saved: DriftSettings?; private(set) var saveCount = 0; func loadSettings() -> DriftSettings { settings }; func saveSettings(_ settings: DriftSettings) throws { self.settings = settings; saved = settings; saveCount += 1 } }
 private final class ControlRuntimeStore: RuntimeStateStoring { var active: Bool? = false; func loadActiveIntent() -> Bool? { active }; func saveActiveIntent(_ activeIntent: Bool) { active = activeIntent }; func loadNextAlternatingButton() -> MouseButton { .left }; func saveNextAlternatingButton(_ button: MouseButton) {} }
 private final class ControlAccessibility: AccessibilityProviding { let trusted: Bool; init(trusted: Bool = true) { self.trusted = trusted }; func isTrusted() -> Bool { trusted }; func openSystemSettings() {} }
 private final class ControlCursor: CursorLocationProviding { func currentLocation() -> CGPoint { .zero } }

@@ -14,6 +14,36 @@ final class ClickIntegrationTests: XCTestCase {
         XCTAssertThrowsError(try fixture.model.setClickMode(.left))
         XCTAssertTrue(fixture.model.isSelectingClickPosition)
         XCTAssertEqual(fixture.model.settings.clickMode, .none)
+        XCTAssertEqual(fixture.selector.selectCallCount, 1)
+    }
+
+    func testSettingClickModeToNonePreservesStoredPosition() throws {
+        var settings = DriftSettings.default
+        let position = ClickPosition(x: 500, y: 400)
+        settings.clickPosition = position
+        try settings.setClickMode(.left)
+        let fixture = makeFixture(settings: settings)
+        fixture.model.start()
+
+        try fixture.model.setClickMode(.none)
+
+        XCTAssertEqual(fixture.model.settings.clickMode, .none)
+        XCTAssertEqual(fixture.model.settings.clickPosition, position)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.clickPosition, position)
+    }
+
+    func testReenablingClickModeReusesStoredPositionWithoutSelection() throws {
+        var settings = DriftSettings.default
+        let position = ClickPosition(x: 500, y: 400)
+        settings.clickPosition = position
+        let fixture = makeFixture(settings: settings)
+        fixture.model.start()
+
+        try fixture.model.setClickMode(.right)
+
+        XCTAssertEqual(fixture.model.settings.clickMode, .right)
+        XCTAssertEqual(fixture.model.settings.clickPosition, position)
+        XCTAssertEqual(fixture.selector.selectCallCount, 0)
     }
 
     func testSelectedPositionIsPersistedAndEnablesRequestedClickMode() async throws {
@@ -227,7 +257,11 @@ private final class ClickRandomFake: DriftRandomSource { func double(in range: C
 @MainActor
 private final class ClickSelectorFake: ClickPositionSelecting {
     private var completion: ((Result<ClickPosition, ClickPositionSelectionError>) -> Void)?
-    func select(completion: @escaping (Result<ClickPosition, ClickPositionSelectionError>) -> Void) { self.completion = completion }
+    private(set) var selectCallCount = 0
+    func select(completion: @escaping (Result<ClickPosition, ClickPositionSelectionError>) -> Void) {
+        selectCallCount += 1
+        self.completion = completion
+    }
     func cancel() { completion?(.failure(.cancelled)); completion = nil }
     func complete(with result: Result<ClickPosition, ClickPositionSelectionError>) { completion?(result); completion = nil }
 }

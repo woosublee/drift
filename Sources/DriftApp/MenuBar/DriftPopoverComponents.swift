@@ -53,28 +53,42 @@ extension View {
 
 struct DriftSettingRow<Trailing: View>: View {
     let label: String
+    let helpText: String?
     let labelAccessibilityHidden: Bool
     private let trailing: Trailing
 
     init(
         _ label: String,
+        helpText: String? = nil,
         labelAccessibilityHidden: Bool = false,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.label = label
+        self.helpText = helpText
         self.labelAccessibilityHidden = labelAccessibilityHidden
         self.trailing = trailing()
     }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DriftPopoverMetrics.settingColumnGap) {
-            Text(label)
-                .accessibilityHidden(labelAccessibilityHidden)
-                .frame(
-                    width: DriftPopoverMetrics.settingLabelWidth,
-                    alignment: .leading
-                )
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 4) {
+                Text(label)
+                    .accessibilityHidden(labelAccessibilityHidden)
+                if let helpText {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(helpText)
+                        .accessibilityLabel("\(label) Help")
+                        .accessibilityHint(helpText)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(
+                width: DriftPopoverMetrics.settingLabelWidth,
+                alignment: .leading
+            )
+            .fixedSize(horizontal: false, vertical: true)
             trailing
                 .frame(
                     width: DriftPopoverMetrics.settingControlWidth,
@@ -87,19 +101,26 @@ struct DriftSettingRow<Trailing: View>: View {
 
 struct DriftToggleSettingRow: View {
     let label: String
+    let helpText: String?
     let isOn: Binding<Bool>
 
-    init(_ label: String, isOn: Binding<Bool>) {
+    init(_ label: String, helpText: String? = nil, isOn: Binding<Bool>) {
         self.label = label
+        self.helpText = helpText
         self.isOn = isOn
     }
 
     var body: some View {
-        DriftSettingRow(label, labelAccessibilityHidden: true) {
+        DriftSettingRow(
+            label,
+            helpText: helpText,
+            labelAccessibilityHidden: true
+        ) {
             Toggle(label, isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .accessibilityLabel(label)
+                .accessibilityHint(helpText ?? "")
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }

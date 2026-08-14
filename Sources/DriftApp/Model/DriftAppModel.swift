@@ -242,6 +242,22 @@ public final class DriftAppModel: ObservableObject {
         }
     }
 
+    public func refreshLoginItemStatus() {
+        let observedStatus = loginItem.status()
+        let launchAtLogin = observedStatus == .enabled
+        let statusChanged = loginItemStatus != observedStatus
+        let launchSettingChanged = settings.launchAtLogin != launchAtLogin
+
+        if statusChanged {
+            loginItemStatus = observedStatus
+            clearLastError(withPrefix: "Launch at Login")
+        }
+        if launchSettingChanged {
+            settings.launchAtLogin = launchAtLogin
+            persistSettings()
+        }
+    }
+
     public func setToggleShortcut(_ shortcut: GlobalShortcut?) {
         settings.toggleShortcut = shortcut
         shortcutRegistrationError = nil
@@ -535,10 +551,8 @@ public final class DriftAppModel: ObservableObject {
         switch status {
         case .requiresApproval:
             "Launch at Login requires approval in System Settings"
-        case .unavailable:
-            "Launch at Login is unavailable"
-        case .enabled, .disabled:
-            "Launch at Login state did not match the requested setting"
+        case .enabled, .disabled, .unavailable:
+            "Launch at Login could not be changed"
         }
     }
 

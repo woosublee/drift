@@ -4,11 +4,12 @@ import DriftCore
 
 struct MotionToggleSettingsCard: View {
     let title: String
+    let helpText: String
     @Binding var isOn: Bool
 
     var body: some View {
         DriftSettingsCard {
-            DriftToggleSettingRow(title, isOn: $isOn)
+            DriftToggleSettingRow(title, helpText: helpText, isOn: $isOn)
         }
     }
 }
@@ -80,13 +81,15 @@ struct ClickingSettingsCard: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isSelecting)
+                    .tint(positionControlsEnabled ? .accentColor : .gray)
+                    .disabled(!positionControlsEnabled || isSelecting)
                     if hasPosition {
                         Button(action: clearPosition) {
                             Text("Clear Position")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderless)
+                        .disabled(!positionControlsEnabled)
                     }
                     if let errorMessage {
                         DriftInlineMessage(text: errorMessage, tone: .error)
@@ -96,6 +99,10 @@ struct ClickingSettingsCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private var positionControlsEnabled: Bool {
+        DriftPopoverPresentation.clickPositionControlsEnabled(for: clickMode)
     }
 }
 
@@ -309,61 +316,95 @@ struct AccessibilitySettingsCard: View {
     }
 }
 
-struct ApplicationSettingsCard: View {
+struct ApplicationFooter: View {
     @ObservedObject var updateService: UpdateService
     let quitTitle: String
     let versionText: String
     let errorMessage: String?
 
     var body: some View {
-        DriftSettingsCard {
-            VStack(alignment: .leading, spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
-                Button {
-                    updateService.checkForUpdates()
-                } label: {
-                    Text("Check for Updates…")
-                        .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
+            Divider()
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
+                    versionLabel
+                    Spacer(minLength: DriftPopoverMetrics.fullWidthBlockSpacing)
+                    updateButton
+                    quitButton
                 }
-                .buttonStyle(.bordered)
-                .disabled(!UpdatePresentation.checkButtonEnabled(
-                    isConfigured: updateService.isConfigured,
-                    canCheck: updateService.canCheckForUpdates
-                ))
+                .fixedSize(horizontal: true, vertical: false)
 
-                if let status = UpdatePresentation.statusMessage(
-                    isConfigured: updateService.isConfigured,
-                    canCheck: updateService.canCheckForUpdates,
-                    serviceMessage: updateService.statusMessage
-                ) {
-                    DriftInlineMessage(
-                        text: status,
-                        tone: UpdatePresentation.statusTone(
-                            isConfigured: updateService.isConfigured,
-                            serviceMessage: updateService.statusMessage
-                        )
-                    )
+                VStack(alignment: .leading, spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
+                    versionLabel
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
+                            updateButton
+                            quitButton
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+
+                        VStack(alignment: .trailing, spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
+                            updateButton
+                            quitButton
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
-
-                if let errorMessage {
-                    DriftInlineMessage(text: errorMessage, tone: .error)
-                }
-
-                Divider()
-
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Text(quitTitle)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Text(versionText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DriftPopoverMetrics.cardHorizontalInset)
+
+            if let status = UpdatePresentation.statusMessage(
+                isConfigured: updateService.isConfigured,
+                canCheck: updateService.canCheckForUpdates,
+                serviceMessage: updateService.statusMessage
+            ) {
+                DriftInlineMessage(
+                    text: status,
+                    tone: UpdatePresentation.statusTone(
+                        isConfigured: updateService.isConfigured,
+                        serviceMessage: updateService.statusMessage
+                    )
+                )
+                .padding(.horizontal, DriftPopoverMetrics.cardHorizontalInset)
+            }
+
+            if let errorMessage {
+                DriftInlineMessage(text: errorMessage, tone: .error)
+                    .padding(.horizontal, DriftPopoverMetrics.cardHorizontalInset)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var versionLabel: some View {
+        Text(versionText)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var updateButton: some View {
+        Button {
+            updateService.checkForUpdates()
+        } label: {
+            Label("Check for Updates…", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(!UpdatePresentation.checkButtonEnabled(
+            isConfigured: updateService.isConfigured,
+            canCheck: updateService.canCheckForUpdates
+        ))
+    }
+
+    private var quitButton: some View {
+        Button {
+            NSApplication.shared.terminate(nil)
+        } label: {
+            Label(quitTitle, systemImage: "power")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 }
