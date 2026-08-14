@@ -19,4 +19,41 @@ final class MenuBarSymbolUpdateCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(appliedPhases, [.inactive, .waitingForIdle])
     }
+
+    func testRepeatedPhaseAppliesOnlyOnce() {
+        var appliedPhases: [DriftPhase] = []
+        let coordinator = MenuBarSymbolUpdateCoordinator { phase in
+            appliedPhases.append(phase)
+        }
+
+        coordinator.phaseDidChange(.inactive, isPopoverShown: false)
+        coordinator.phaseDidChange(.inactive, isPopoverShown: false)
+
+        XCTAssertEqual(appliedPhases, [.inactive])
+    }
+
+    func testPopoverCloseDoesNotReapplyAlreadyAppliedPhase() {
+        var appliedPhases: [DriftPhase] = []
+        let coordinator = MenuBarSymbolUpdateCoordinator { phase in
+            appliedPhases.append(phase)
+        }
+
+        coordinator.phaseDidChange(.inactive, isPopoverShown: false)
+        coordinator.popoverDidClose(currentPhase: .inactive)
+
+        XCTAssertEqual(appliedPhases, [.inactive])
+    }
+
+    func testDistinctActivePhasesSharingGlyphApplyOnlyOnce() {
+        var appliedPhases: [DriftPhase] = []
+        let coordinator = MenuBarSymbolUpdateCoordinator { phase in
+            appliedPhases.append(phase)
+        }
+
+        coordinator.phaseDidChange(.waitingForIdle, isPopoverShown: false)
+        coordinator.phaseDidChange(.performingMotion, isPopoverShown: false)
+        coordinator.phaseDidChange(.waitingForRepeat, isPopoverShown: false)
+
+        XCTAssertEqual(appliedPhases, [.waitingForIdle])
+    }
 }

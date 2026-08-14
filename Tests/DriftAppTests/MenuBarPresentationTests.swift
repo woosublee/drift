@@ -36,18 +36,17 @@ final class MenuBarPresentationTests: XCTestCase {
     // Break caught: the provided SVGs are not loaded from the built app resource directory.
     func testSVGAssetsRenderAsDistinctTemplateImages() throws {
         let resourceDirectory = sourceRoot().appendingPathComponent("Resources")
+        let renderer = MenuBarIconRenderer(resourceDirectory: resourceDirectory)
         let inactive = try XCTUnwrap(
-            MenuBarIconRenderer.image(
+            renderer.image(
                 for: .asset(name: "MenuBarIcon-Inactive"),
-                accessibilityDescription: "Drift",
-                resourceDirectory: resourceDirectory
+                accessibilityDescription: "Drift"
             )
         )
         let active = try XCTUnwrap(
-            MenuBarIconRenderer.image(
+            renderer.image(
                 for: .asset(name: "MenuBarIcon-Active"),
-                accessibilityDescription: "Drift",
-                resourceDirectory: resourceDirectory
+                accessibilityDescription: "Drift"
             )
         )
         let inactiveAlpha = try alphaPixelCount(inactive)
@@ -63,14 +62,81 @@ final class MenuBarPresentationTests: XCTestCase {
     }
 
     func testBlockedRendererUsesTemplateSystemSymbol() throws {
+        let renderer = MenuBarIconRenderer()
         let image = try XCTUnwrap(
-            MenuBarIconRenderer.image(
+            renderer.image(
                 for: .systemSymbol(name: "exclamationmark.triangle"),
                 accessibilityDescription: "Drift"
             )
         )
 
         XCTAssertTrue(image.isTemplate)
+    }
+
+    func testRendererCachesRepeatedAssetGlyph() throws {
+        var loadCount = 0
+        let loadedImage = NSImage(size: NSSize(width: 1, height: 1))
+        let renderer = MenuBarIconRenderer(
+            resourceDirectory: URL(fileURLWithPath: "/test-resources"),
+            assetLoader: { _ in
+                loadCount += 1
+                return loadedImage
+            }
+        )
+
+        let first = try XCTUnwrap(renderer.image(
+            for: .asset(name: "MenuBarIcon-Active"),
+            accessibilityDescription: "Drift"
+        ))
+        let second = try XCTUnwrap(renderer.image(
+            for: .asset(name: "MenuBarIcon-Active"),
+            accessibilityDescription: "Drift Active"
+        ))
+
+        XCTAssertEqual(loadCount, 1)
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(second.accessibilityDescription, "Drift Active")
+    }
+
+    func testRendererLoadsDistinctAssetGlyphsSeparately() throws {
+        var loadedURLs: [URL] = []
+        let renderer = MenuBarIconRenderer(
+            resourceDirectory: URL(fileURLWithPath: "/test-resources"),
+            assetLoader: { url in
+                loadedURLs.append(url)
+                return NSImage(size: NSSize(width: 1, height: 1))
+            }
+        )
+
+        _ = try XCTUnwrap(renderer.image(
+            for: .asset(name: "MenuBarIcon-Inactive"),
+            accessibilityDescription: "Drift"
+        ))
+        _ = try XCTUnwrap(renderer.image(
+            for: .asset(name: "MenuBarIcon-Active"),
+            accessibilityDescription: "Drift"
+        ))
+
+        XCTAssertEqual(
+            loadedURLs.map(\.lastPathComponent),
+            ["MenuBarIcon-Inactive.svg", "MenuBarIcon-Active.svg"]
+        )
+    }
+
+    func testRendererCachesRepeatedSystemSymbolGlyph() throws {
+        let renderer = MenuBarIconRenderer()
+
+        let first = try XCTUnwrap(renderer.image(
+            for: .systemSymbol(name: "exclamationmark.triangle"),
+            accessibilityDescription: "Drift"
+        ))
+        let second = try XCTUnwrap(renderer.image(
+            for: .systemSymbol(name: "exclamationmark.triangle"),
+            accessibilityDescription: "Drift Blocked"
+        ))
+
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(second.accessibilityDescription, "Drift Blocked")
     }
 
     func testPopoverUsesCompactReferenceWidth() {
