@@ -14,6 +14,36 @@ final class ClickIntegrationTests: XCTestCase {
         XCTAssertThrowsError(try fixture.model.setClickMode(.left))
         XCTAssertTrue(fixture.model.isSelectingClickPosition)
         XCTAssertEqual(fixture.model.settings.clickMode, .none)
+        XCTAssertEqual(fixture.selector.selectCallCount, 1)
+    }
+
+    func testSettingClickModeToNonePreservesStoredPosition() throws {
+        var settings = DriftSettings.default
+        let position = ClickPosition(x: 500, y: 400)
+        settings.clickPosition = position
+        try settings.setClickMode(.left)
+        let fixture = makeFixture(settings: settings)
+        fixture.model.start()
+
+        try fixture.model.setClickMode(.none)
+
+        XCTAssertEqual(fixture.model.settings.clickMode, .none)
+        XCTAssertEqual(fixture.model.settings.clickPosition, position)
+        XCTAssertEqual(fixture.settingsStore.savedSettings?.clickPosition, position)
+    }
+
+    func testReenablingClickModeReusesStoredPositionWithoutSelection() throws {
+        var settings = DriftSettings.default
+        let position = ClickPosition(x: 500, y: 400)
+        settings.clickPosition = position
+        let fixture = makeFixture(settings: settings)
+        fixture.model.start()
+
+        try fixture.model.setClickMode(.right)
+
+        XCTAssertEqual(fixture.model.settings.clickMode, .right)
+        XCTAssertEqual(fixture.model.settings.clickPosition, position)
+        XCTAssertEqual(fixture.selector.selectCallCount, 0)
     }
 
     func testSelectedPositionIsPersistedAndEnablesRequestedClickMode() async throws {
@@ -27,6 +57,24 @@ final class ClickIntegrationTests: XCTestCase {
         XCTAssertEqual(fixture.model.settings.clickMode, .right)
         XCTAssertEqual(fixture.settingsStore.savedSettings?.clickPosition, ClickPosition(x: 500, y: 400))
         XCTAssertTrue(fixture.model.isClickPositionValid)
+    }
+
+    func testCancellingPositionSelectionPreservesStoredPositionAndMode() async throws {
+        var settings = DriftSettings.default
+        let position = ClickPosition(x: 500, y: 400)
+        settings.clickPosition = position
+        try settings.setClickMode(.left)
+        let fixture = makeFixture(settings: settings)
+        fixture.model.start()
+        fixture.model.selectClickPosition()
+
+        fixture.model.cancelClickPositionSelection()
+        await Task.yield()
+
+        XCTAssertEqual(fixture.selector.cancelCallCount, 1)
+        XCTAssertFalse(fixture.model.isSelectingClickPosition)
+        XCTAssertEqual(fixture.model.settings.clickPosition, position)
+        XCTAssertEqual(fixture.model.settings.clickMode, .left)
     }
 
     func testInvalidStoredPositionPreventsAnyEventSequence() {
@@ -227,8 +275,17 @@ private final class ClickRandomFake: DriftRandomSource { func double(in range: C
 @MainActor
 private final class ClickSelectorFake: ClickPositionSelecting {
     private var completion: ((Result<ClickPosition, ClickPositionSelectionError>) -> Void)?
-    func select(completion: @escaping (Result<ClickPosition, ClickPositionSelectionError>) -> Void) { self.completion = completion }
-    func cancel() { completion?(.failure(.cancelled)); completion = nil }
+    private(set) var selectCallCount = 0
+    private(set) var cancelCallCount = 0
+    func select(completion: @escaping (Result<ClickPosition, ClickPositionSelectionError>) -> Void) {
+        selectCallCount += 1
+        self.completion = completion
+    }
+    func cancel() {
+        cancelCallCount += 1
+        completion?(.failure(.cancelled))
+        completion = nil
+    }
     func complete(with result: Result<ClickPosition, ClickPositionSelectionError>) { completion?(result); completion = nil }
 }
 

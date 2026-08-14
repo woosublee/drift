@@ -77,6 +77,22 @@ final class MenuBarPresentationTests: XCTestCase {
         XCTAssertEqual(MenuBarPresentation.popoverContentWidth, 410)
     }
 
+    func testStatusItemScreenHeightWinsOverFallbackScreens() {
+        XCTAssertEqual(
+            MenuBarPresentation.availablePopoverHeight(
+                statusItemScreenHeight: 700,
+                mainScreenHeight: 1_000,
+                firstScreenHeight: 1_200,
+                fallbackHeight: 500
+            ),
+            700
+        )
+    }
+
+    func testPopoverUsesApplicationDefinedBehaviorWithOutsideClickShield() {
+        XCTAssertEqual(MenuBarPresentation.popoverBehavior, .applicationDefined)
+    }
+
     func testPopoverContentSizeUsesFittingHeightWhenItFits() {
         XCTAssertEqual(
             MenuBarPresentation.popoverContentSize(

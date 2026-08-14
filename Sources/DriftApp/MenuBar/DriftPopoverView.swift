@@ -16,17 +16,20 @@ struct DriftPopoverView: View {
     @ObservedObject var updateService: UpdateService
     let identity: AppIdentity
     let versionText: String
+    let onContentHeightChange: (CGFloat) -> Void
     @StateObject private var recorder: ShortcutRecorderModel
 
     init(
         model: DriftAppModel,
         updateService: UpdateService,
         identity: AppIdentity = .current,
-        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        onContentHeightChange: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.model = model
         self.updateService = updateService
         self.identity = identity
+        self.onContentHeightChange = onContentHeightChange
         versionText = DriftPopoverPresentation.versionText(
             displayName: identity.displayName,
             infoDictionary: infoDictionary
@@ -57,11 +60,13 @@ struct DriftPopoverView: View {
 
                 MotionToggleSettingsCard(
                     title: DriftPopoverPresentation.smartMotionAccessibilityLabel,
+                    helpText: DriftPopoverPresentation.smartMotionHelpText,
                     isOn: smartMotionBinding
                 )
 
                 MotionToggleSettingsCard(
                     title: DriftPopoverPresentation.silentModeAccessibilityLabel,
+                    helpText: DriftPopoverPresentation.silentModeHelpText,
                     isOn: silentModeBinding
                 )
 
@@ -96,8 +101,7 @@ struct DriftPopoverView: View {
                     recorder: recorder,
                     errorMessage: DriftPopoverPresentation.behaviorErrorMessage(
                         genericError: errorMessage(for: .behavior),
-                        shortcutError: model.shortcutRegistrationError,
-                        loginItemStatus: model.loginItemStatus
+                        shortcutError: model.shortcutRegistrationError
                     )
                 )
 
@@ -106,7 +110,7 @@ struct DriftPopoverView: View {
                     openSystemSettings: model.openAccessibilitySettings
                 )
 
-                ApplicationSettingsCard(
+                ApplicationFooter(
                     updateService: updateService,
                     quitTitle: identity.quitTitle,
                     versionText: versionText,
@@ -116,6 +120,7 @@ struct DriftPopoverView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, DriftPopoverMetrics.contentHorizontalPadding)
             .padding(.vertical, DriftPopoverMetrics.contentVerticalPadding)
+            .reportPopoverContentHeight(onContentHeightChange)
         }
         .scrollIndicators(.automatic)
         .frame(width: DriftPopoverMetrics.contentWidth)

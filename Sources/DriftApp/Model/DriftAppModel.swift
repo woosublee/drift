@@ -198,6 +198,11 @@ public final class DriftAppModel: ObservableObject {
         }
     }
 
+    public func cancelClickPositionSelection() {
+        guard isSelectingClickPosition else { return }
+        clickPositionSelector.cancel()
+    }
+
     public func clearClickPosition() {
         clickPositionSelector.cancel()
         pendingClickMode = nil
@@ -238,6 +243,22 @@ public final class DriftAppModel: ObservableObject {
             loginItemStatus = observedStatus
             settings.launchAtLogin = observedStatus == .enabled
             lastError = loginErrorMessage(for: error)
+            persistSettings()
+        }
+    }
+
+    public func refreshLoginItemStatus() {
+        let observedStatus = loginItem.status()
+        let launchAtLogin = observedStatus == .enabled
+        let statusChanged = loginItemStatus != observedStatus
+        let launchSettingChanged = settings.launchAtLogin != launchAtLogin
+
+        if statusChanged {
+            loginItemStatus = observedStatus
+            clearLastError(withPrefix: "Launch at Login")
+        }
+        if launchSettingChanged {
+            settings.launchAtLogin = launchAtLogin
             persistSettings()
         }
     }
@@ -535,10 +556,8 @@ public final class DriftAppModel: ObservableObject {
         switch status {
         case .requiresApproval:
             "Launch at Login requires approval in System Settings"
-        case .unavailable:
-            "Launch at Login is unavailable"
-        case .enabled, .disabled:
-            "Launch at Login state did not match the requested setting"
+        case .enabled, .disabled, .unavailable:
+            "Launch at Login could not be changed"
         }
     }
 
