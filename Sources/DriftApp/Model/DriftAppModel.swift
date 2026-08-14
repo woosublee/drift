@@ -617,7 +617,11 @@ public final class DriftAppModel: ObservableObject {
     }
 
     private func publishMachineState() {
-        phase = machine.phase
-        isActiveIntent = machine.activeIntent
+        if phase != machine.phase {
+            phase = machine.phase
+        }
+        if isActiveIntent != machine.activeIntent {
+            isActiveIntent = machine.activeIntent
+        }
     }
 }

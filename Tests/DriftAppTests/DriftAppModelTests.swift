@@ -1,3 +1,4 @@
+import Combine
 import CoreGraphics
 import XCTest
 import DriftCore
@@ -76,6 +77,47 @@ final class DriftAppModelTests: XCTestCase {
 
         XCTAssertEqual(fixture.motionExecutor.cancelCallCount, 1)
         XCTAssertEqual(fixture.model.phase, .waitingForIdle)
+    }
+
+    func testPhysicalInputWithoutVisibleStateChangeDoesNotRepublishMachineState() {
+        let fixture = makeFixture(activeIntent: true)
+        fixture.model.start()
+        var phaseEmissionCount = 0
+        var activeIntentEmissionCount = 0
+        var cancellables: Set<AnyCancellable> = []
+        fixture.model.$phase.dropFirst().sink { _ in
+            phaseEmissionCount += 1
+        }.store(in: &cancellables)
+        fixture.model.$isActiveIntent.dropFirst().sink { _ in
+            activeIntentEmissionCount += 1
+        }.store(in: &cancellables)
+
+        fixture.model.handlePhysicalInput(at: now.addingTimeInterval(30))
+
+        XCTAssertEqual(phaseEmissionCount, 0)
+        XCTAssertEqual(activeIntentEmissionCount, 0)
+        XCTAssertEqual(fixture.motionExecutor.cancelCallCount, 1)
+    }
+
+    func testPhysicalInputStateChangePublishesPhaseOnce() {
+        let fixture = makeFixture(activeIntent: true)
+        fixture.model.start()
+        fixture.model.handleTick(at: now.addingTimeInterval(60))
+        var phaseEmissions: [DriftPhase] = []
+        var activeIntentEmissionCount = 0
+        var cancellables: Set<AnyCancellable> = []
+        fixture.model.$phase.dropFirst().sink { phase in
+            phaseEmissions.append(phase)
+        }.store(in: &cancellables)
+        fixture.model.$isActiveIntent.dropFirst().sink { _ in
+            activeIntentEmissionCount += 1
+        }.store(in: &cancellables)
+
+        fixture.model.handlePhysicalInput(at: now.addingTimeInterval(61))
+
+        XCTAssertEqual(phaseEmissions, [.waitingForIdle])
+        XCTAssertEqual(activeIntentEmissionCount, 0)
+        XCTAssertEqual(fixture.motionExecutor.cancelCallCount, 1)
     }
 
     func testMotionCompletionSchedulesRepeatDelay() async {
