@@ -2,6 +2,14 @@ import Foundation
 import SwiftUI
 import DriftCore
 
+private struct DriftPopoverMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        DriftPopoverAppearance.makeMaterialView()
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
 @MainActor
 struct DriftPopoverView: View {
     @ObservedObject var model: DriftAppModel
@@ -111,6 +119,7 @@ struct DriftPopoverView: View {
         }
         .scrollIndicators(.automatic)
         .frame(width: DriftPopoverMetrics.contentWidth)
+        .background(DriftPopoverMaterial())
     }
 
     private func errorMessage(for section: DriftPopoverSection) -> String? {

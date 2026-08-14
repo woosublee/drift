@@ -17,14 +17,21 @@ struct DriftSettingsCard<Content: View>: View {
                     cornerRadius: DriftPopoverMetrics.cardCornerRadius,
                     style: .continuous
                 )
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(
+                    Color(nsColor: .controlBackgroundColor)
+                        .opacity(DriftPopoverAppearance.cardBackgroundOpacity)
+                )
             )
             .overlay(
                 RoundedRectangle(
                     cornerRadius: DriftPopoverMetrics.cardCornerRadius,
                     style: .continuous
                 )
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
+                .stroke(
+                    Color(nsColor: .separatorColor)
+                        .opacity(DriftPopoverAppearance.cardBorderOpacity),
+                    lineWidth: 1
+                )
             )
     }
 }
@@ -168,17 +175,25 @@ struct DriftStatusCard: View {
 
     private var statusBackground: Color {
         switch status.tone {
-        case .active: Color.accentColor.opacity(0.12)
-        case .inactive: Color(nsColor: .controlBackgroundColor)
-        case .warning: Color.orange.opacity(0.12)
+        case .active:
+            Color.accentColor.opacity(DriftPopoverAppearance.statusTintOpacity)
+        case .inactive:
+            Color(nsColor: .controlBackgroundColor)
+                .opacity(DriftPopoverAppearance.cardBackgroundOpacity)
+        case .warning:
+            Color.orange.opacity(DriftPopoverAppearance.statusTintOpacity)
         }
     }
 
     private var statusBorder: Color {
         switch status.tone {
-        case .active: Color.accentColor.opacity(0.45)
-        case .inactive: Color(nsColor: .separatorColor).opacity(0.45)
-        case .warning: Color.orange.opacity(0.55)
+        case .active:
+            Color.accentColor.opacity(DriftPopoverAppearance.statusBorderOpacity)
+        case .inactive:
+            Color(nsColor: .separatorColor)
+                .opacity(DriftPopoverAppearance.cardBorderOpacity)
+        case .warning:
+            Color.orange.opacity(DriftPopoverAppearance.statusBorderOpacity)
         }
     }
 }
