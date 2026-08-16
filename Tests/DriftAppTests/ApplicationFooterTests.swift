@@ -63,7 +63,8 @@ final class ApplicationFooterTests: XCTestCase {
                 updateService: service,
                 quitTitle: quitTitle,
                 versionText: versionText,
-                errorMessage: nil
+                errorMessage: nil,
+                checkForUpdates: service.checkForUpdates
             )
             .environment(\.dynamicTypeSize, dynamicTypeSize)
             .environment(

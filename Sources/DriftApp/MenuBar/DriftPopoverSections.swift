@@ -321,6 +321,7 @@ struct ApplicationFooter: View {
     let quitTitle: String
     let versionText: String
     let errorMessage: String?
+    let checkForUpdates: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DriftPopoverMetrics.fullWidthBlockSpacing) {
@@ -385,9 +386,7 @@ struct ApplicationFooter: View {
     }
 
     private var updateButton: some View {
-        Button {
-            updateService.checkForUpdates()
-        } label: {
+        Button(action: checkForUpdates) {
             Label("Check for Updates…", systemImage: "arrow.clockwise")
         }
         .buttonStyle(.bordered)

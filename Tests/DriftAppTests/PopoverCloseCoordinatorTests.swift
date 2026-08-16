@@ -46,7 +46,7 @@ final class PopoverCloseCoordinatorTests: XCTestCase {
         XCTAssertEqual(closeCount, 1)
     }
 
-    func testApplicationDeactivationCancelsSelectionBeforeResetAndClose() {
+    func testExclusivePresentationCancelsSelectionBeforeResetAndClose() {
         var events: [String] = []
         let coordinator = PopoverCloseCoordinator(
             isSelectionInProgress: { true },
@@ -54,14 +54,14 @@ final class PopoverCloseCoordinatorTests: XCTestCase {
             forceClose: { events.append("close") }
         )
 
-        coordinator.closeForApplicationDeactivation {
+        coordinator.closeForExclusivePresentation {
             events.append("cancel")
         }
 
         XCTAssertEqual(events, ["cancel", "reset", "close"])
     }
 
-    func testApplicationDeactivationClosesWithoutCancellationOutsideSelection() {
+    func testExclusivePresentationClosesWithoutCancellationOutsideSelection() {
         var events: [String] = []
         let coordinator = PopoverCloseCoordinator(
             isSelectionInProgress: { false },
@@ -69,10 +69,25 @@ final class PopoverCloseCoordinatorTests: XCTestCase {
             forceClose: { events.append("close") }
         )
 
-        coordinator.closeForApplicationDeactivation {
+        coordinator.closeForExclusivePresentation {
             events.append("cancel")
         }
 
         XCTAssertEqual(events, ["reset", "close"])
+    }
+}
+
+@MainActor
+final class UpdateCheckCoordinatorTests: XCTestCase {
+    func testUpdateCheckPreparesExclusivePresentationBeforeChecking() {
+        var events: [String] = []
+        let coordinator = UpdateCheckCoordinator(
+            prepareForUpdateUI: { events.append("prepare") },
+            checkForUpdates: { events.append("check") }
+        )
+
+        coordinator.checkForUpdates()
+
+        XCTAssertEqual(events, ["prepare", "check"])
     }
 }
