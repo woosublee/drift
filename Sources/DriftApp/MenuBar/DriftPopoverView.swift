@@ -16,6 +16,7 @@ struct DriftPopoverView: View {
     @ObservedObject var updateService: UpdateService
     let identity: AppIdentity
     let versionText: String
+    let checkForUpdates: () -> Void
     let onContentHeightChange: (CGFloat) -> Void
     @StateObject private var recorder: ShortcutRecorderModel
 
@@ -24,11 +25,13 @@ struct DriftPopoverView: View {
         updateService: UpdateService,
         identity: AppIdentity = .current,
         infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        checkForUpdates: @escaping () -> Void,
         onContentHeightChange: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.model = model
         self.updateService = updateService
         self.identity = identity
+        self.checkForUpdates = checkForUpdates
         self.onContentHeightChange = onContentHeightChange
         versionText = DriftPopoverPresentation.versionText(
             displayName: identity.displayName,
@@ -114,7 +117,8 @@ struct DriftPopoverView: View {
                     updateService: updateService,
                     quitTitle: identity.quitTitle,
                     versionText: versionText,
-                    errorMessage: errorMessage(for: .application)
+                    errorMessage: errorMessage(for: .application),
+                    checkForUpdates: checkForUpdates
                 )
             }
             .frame(maxWidth: .infinity)

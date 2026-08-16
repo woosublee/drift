@@ -53,6 +53,7 @@ public final class UpdateService: ObservableObject {
 
     public func checkForUpdates() {
         guard canCheckForUpdates else { return }
+        statusMessage = nil
         updater?.checkForUpdates()
     }
 

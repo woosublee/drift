@@ -71,6 +71,25 @@ final class MenuBarSymbolUpdateCoordinator {
 }
 
 @MainActor
+final class UpdateCheckCoordinator {
+    private let prepareForUpdateUI: () -> Void
+    private let check: () -> Void
+
+    init(
+        prepareForUpdateUI: @escaping () -> Void,
+        checkForUpdates: @escaping () -> Void
+    ) {
+        self.prepareForUpdateUI = prepareForUpdateUI
+        check = checkForUpdates
+    }
+
+    func checkForUpdates() {
+        prepareForUpdateUI()
+        check()
+    }
+}
+
+@MainActor
 final class PopoverCloseCoordinator {
     private let isSelectionInProgress: () -> Bool
     private let prepareForExplicitClose: () -> Void
@@ -95,7 +114,7 @@ final class PopoverCloseCoordinator {
         forceClose()
     }
 
-    func closeForApplicationDeactivation(
+    func closeForExclusivePresentation(
         cancelSelection: () -> Void
     ) {
         if isSelectionInProgress() {
@@ -211,6 +230,17 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             self?.popover.close()
         }
     )
+    private lazy var updateCheckCoordinator = UpdateCheckCoordinator(
+        prepareForUpdateUI: { [weak self] in
+            guard let self else { return }
+            self.closeCoordinator.closeForExclusivePresentation {
+                self.model.cancelClickPositionSelection()
+            }
+        },
+        checkForUpdates: { [weak self] in
+            self?.updateService.checkForUpdates()
+        }
+    )
     private lazy var contentSizeCoordinator = PopoverContentSizeCoordinator(
         currentSize: { [weak self] in
             self?.popover.contentSize ?? NSSize(
@@ -248,6 +278,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                 model: model,
                 updateService: updateService,
                 identity: identity,
+                checkForUpdates: { [weak self] in
+                    self?.updateCheckCoordinator.checkForUpdates()
+                },
                 onContentHeightChange: { [weak self] height in
                     self?.contentSizeCoordinator.contentHeightDidChange(height)
                 }
@@ -281,7 +314,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         applicationEventObserver.start(
             onDeactivate: { [weak self] in
                 guard let self, popover.isShown else { return }
-                closeCoordinator.closeForApplicationDeactivation {
+                closeCoordinator.closeForExclusivePresentation {
                     model.cancelClickPositionSelection()
                 }
             },

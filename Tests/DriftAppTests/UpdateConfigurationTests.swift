@@ -86,6 +86,20 @@ final class UpdateServiceTests: XCTestCase {
         XCTAssertEqual(updater.checkCount, 1)
     }
 
+    func testCheckForUpdatesClearsPreviousError() {
+        let updater = RecordingUpdater()
+        let factory = RecordingUpdaterFactory(updater: updater)
+        let service = configuredService(factory: factory)
+        service.start()
+        factory.emitCanCheck(true)
+        factory.emitError(NSError(domain: "SparkleTest", code: 1))
+
+        service.checkForUpdates()
+
+        XCTAssertNil(service.statusMessage)
+        XCTAssertEqual(updater.checkCount, 1)
+    }
+
     func testUpdaterErrorPublishesStatusWithoutDisablingDriftFeatures() {
         let factory = RecordingUpdaterFactory(updater: RecordingUpdater())
         let service = configuredService(factory: factory)

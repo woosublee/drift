@@ -16,8 +16,16 @@ public final class SparkleUpdaterControllerFactory: UpdaterControllerMaking {
     }
 }
 
+enum SparkleUpdateAbortClassifier {
+    static func shouldReport(_ error: Error) -> Bool {
+        let error = error as NSError
+        return error.domain != SUSparkleErrorDomain
+            || error.code != Int(SUError.noUpdateError.rawValue)
+    }
+}
+
 @MainActor
-private final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
+final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     private let onError: (Error) -> Void
 
     init(onError: @escaping (Error) -> Void) {
@@ -25,6 +33,11 @@ private final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        handleAbort(error)
+    }
+
+    func handleAbort(_ error: Error) {
+        guard SparkleUpdateAbortClassifier.shouldReport(error) else { return }
         onError(error)
     }
 }
