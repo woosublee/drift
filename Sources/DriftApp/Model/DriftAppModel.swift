@@ -120,36 +120,19 @@ public final class DriftAppModel: ObservableObject {
         publishMachineState()
         registerStoredShortcut()
 
-        inputMonitor.start { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handlePhysicalInput(at: self.now())
-            }
-        }
+        inputMonitor.start(onActivity: onMainActor { model in
+            model.handlePhysicalInput(at: model.now())
+        })
         systemActivityObserver.start(
-            onSuspend: { [weak self] in
-                Task { @MainActor [weak self] in
-                    self?.handleSystemSuspend()
-                }
-            },
-            onResume: { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    self.handleSystemResume(at: self.now())
-                }
-            },
-            onDisplayReconfiguration: { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    self.handleDisplayReconfiguration(at: self.now())
-                }
+            onSuspend: onMainActor { model in model.handleSystemSuspend() },
+            onResume: onMainActor { model in model.handleSystemResume(at: model.now()) },
+            onDisplayReconfiguration: onMainActor { model in
+                model.handleDisplayReconfiguration(at: model.now())
             }
         )
-        scheduler.start { [weak self] tickDate in
-            Task { @MainActor [weak self] in
-                self?.handleTick(at: tickDate)
-            }
-        }
+        scheduler.start(onMainActor { model, tickDate in
+            model.handleTick(at: tickDate)
+        })
     }
 
     public func shutdown() {
@@ -164,13 +147,11 @@ public final class DriftAppModel: ObservableObject {
     }
 
     public func setSilentModeEnabled(_ enabled: Bool) {
-        settings.isSilentModeEnabled = enabled
-        persistSettings()
+        updateSettings { $0.isSilentModeEnabled = enabled }
     }
 
     public func setSmartMotionEnabled(_ enabled: Bool) {
-        settings.isSmartMotionEnabled = enabled
-        persistSettings()
+        updateSettings { $0.isSmartMotionEnabled = enabled }
     }
 
     public func setClickMode(_ mode: ClickMode) throws {
@@ -191,11 +172,9 @@ public final class DriftAppModel: ObservableObject {
     public func selectClickPosition() {
         guard !isSelectingClickPosition else { return }
         isSelectingClickPosition = true
-        clickPositionSelector.select { [weak self] result in
-            Task { @MainActor [weak self] in
-                self?.finishClickPositionSelection(result)
-            }
-        }
+        clickPositionSelector.select(completion: onMainActor { model, result in
+            model.finishClickPositionSelection(result)
+        })
     }
 
     public func cancelClickPositionSelection() {
@@ -214,15 +193,13 @@ public final class DriftAppModel: ObservableObject {
     }
 
     public func setDailyStop(_ dailyStop: DailyStopSettings) {
-        settings.dailyStop = dailyStop
-        persistSettings()
+        updateSettings { $0.dailyStop = dailyStop }
     }
 
     public func setBatteryStop(_ batteryStop: BatteryStopSettings) {
         var normalized = batteryStop
         normalized.thresholdPercent = min(50, max(5, normalized.thresholdPercent))
-        settings.batteryStop = normalized
-        persistSettings()
+        updateSettings { $0.batteryStop = normalized }
     }
 
     public func setLaunchAtLogin(_ enabled: Bool) {
@@ -289,13 +266,11 @@ public final class DriftAppModel: ObservableObject {
     }
 
     public func setStartDelay(_ delay: StartDelay) {
-        settings.startDelay = delay
-        persistSettings()
+        updateSettings { $0.startDelay = delay }
     }
 
     public func setRepeatInterval(_ interval: RepeatInterval) {
-        settings.repeatInterval = interval
-        persistSettings()
+        updateSettings { $0.repeatInterval = interval }
     }
 
     public func handleTick(at date: Date) {
@@ -349,12 +324,9 @@ public final class DriftAppModel: ObservableObject {
             bounds: bounds,
             random: random
         )
-        motionExecutor.execute(plan) { [weak self] result in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handleMotionCompletion(result, at: self.now())
-            }
-        }
+        motionExecutor.execute(plan, completion: onMainActor { model, result in
+            model.handleMotionCompletion(result, at: model.now())
+        })
     }
 
     public func handlePhysicalInput(at date: Date) {
@@ -422,12 +394,9 @@ public final class DriftAppModel: ObservableObject {
             publishMachineState()
             return
         }
-        motionExecutor.execute(sequence) { [weak self] result in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handleClickCompletion(result, at: self.now())
-            }
-        }
+        motionExecutor.execute(sequence, completion: onMainActor { model, result in
+            model.handleClickCompletion(result, at: model.now())
+        })
     }
 
     private func handleMotionCompletion(
@@ -545,11 +514,32 @@ public final class DriftAppModel: ObservableObject {
     }
 
     private func registerShortcut(_ shortcut: GlobalShortcut) -> Result<Void, GlobalShortcutError> {
-        globalShortcut.register(shortcut) { [weak self] in
+        globalShortcut.register(shortcut, handler: onMainActor { model in
+            model.toggleActive(showHUD: true)
+        })
+    }
+
+    private func onMainActor(_ work: @escaping (DriftAppModel) -> Void) -> () -> Void {
+        { [weak self] in
             Task { @MainActor [weak self] in
-                self?.toggleActive(showHUD: true)
+                guard let self else { return }
+                work(self)
             }
         }
+    }
+
+    private func onMainActor<T>(_ work: @escaping (DriftAppModel, T) -> Void) -> (T) -> Void {
+        { [weak self] value in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                work(self, value)
+            }
+        }
+    }
+
+    private func updateSettings(_ mutate: (inout DriftSettings) -> Void) {
+        mutate(&settings)
+        persistSettings()
     }
 
     private func loginErrorMessage(for status: LoginItemStatus) -> String {
