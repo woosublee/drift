@@ -214,13 +214,13 @@ final class DriftAppModelTests: XCTestCase {
         XCTAssertEqual(fixture.motionExecutor.plans[0].samples.count, 2)
     }
 
-    func testOpeningAccessibilitySettingsRequestsAccessBeforeOpeningSettings() {
+    func testOpeningAccessibilitySettingsOpensGuidedFlowWithoutSystemPrompt() {
         let accessibility = FakeAccessibility(trusted: false)
         let fixture = makeFixture(activeIntent: false, accessibility: accessibility)
 
         fixture.model.openAccessibilitySettings()
 
-        XCTAssertEqual(accessibility.requestAccessCallCount, 1)
+        XCTAssertEqual(accessibility.requestAccessCallCount, 0)
         XCTAssertEqual(accessibility.openSettingsCallCount, 1)
     }
 

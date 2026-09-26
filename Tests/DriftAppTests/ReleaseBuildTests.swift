@@ -19,6 +19,7 @@ final class ReleaseBuildTests: XCTestCase {
         XCTAssertTrue(log.contains("lipo -create"))
         XCTAssertTrue(log.contains("bundle-prebuilt"))
         XCTAssertTrue(log.contains("PREBUILT_EXECUTABLE="))
+        XCTAssertTrue(log.contains("/build/release/swift-arm64/bin/PermissionFlow_PermissionFlow.bundle"))
         XCTAssertTrue(log.contains("SPARKLE_FEED_URL=https://github.com/woosublee/drift/releases/latest/download/appcast.xml"))
     }
 
@@ -134,7 +135,7 @@ final class ReleaseBuildTests: XCTestCase {
             fi
         done
         [[ -n "$scratch" ]]
-        mkdir -p "$scratch/bin/Sparkle.framework"
+        mkdir -p "$scratch/bin/Sparkle.framework" "$scratch/bin/PermissionFlow_PermissionFlow.bundle"
         print -r -- '#!/bin/zsh' > "$scratch/bin/Drift"
         chmod +x "$scratch/bin/Drift"
         if [[ " $* " == *" --show-bin-path "* ]]; then

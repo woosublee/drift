@@ -9,7 +9,8 @@ let package = Package(
         .library(name: "DriftCore", targets: ["DriftCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.2")
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.2"),
+        .package(url: "https://github.com/jaywcjlove/PermissionFlow", exact: "2.11.2")
     ],
     targets: [
         .target(name: "DriftCore", path: "Sources/DriftCore"),
@@ -17,7 +18,8 @@ let package = Package(
             name: "DriftApp",
             dependencies: [
                 "DriftCore",
-                .product(name: "Sparkle", package: "Sparkle")
+                .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "PermissionFlow", package: "PermissionFlow")
             ],
             path: "Sources/DriftApp",
             linkerSettings: [
