@@ -205,6 +205,10 @@ bundle-prebuilt: validate-build-identity
 		echo "PREBUILT_SPARKLE_FRAMEWORK must name Sparkle.framework" >&2; \
 		exit 1; \
 	fi
+	@if [[ -z "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" ]] || [[ ! -d "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" ]]; then \
+		echo "PREBUILT_PERMISSION_FLOW_BUNDLE must name PermissionFlow_PermissionFlow.bundle" >&2; \
+		exit 1; \
+	fi
 	rm -rf "$(APP_DIR)" "$(APP_ICONSET_DIR)"
 	mkdir -p "$(MACOS_DIR)" "$(FRAMEWORKS_DIR)" "$(RESOURCES_DIR)" "$(APP_ICONSET_DIR)"
 	$(SIPS) -z 16 16 "$(APP_ICON_SOURCE)" --out "$(APP_ICONSET_DIR)/icon_16x16.png" >/dev/null
@@ -228,10 +232,8 @@ bundle-prebuilt: validate-build-identity
 	plutil -replace NSAccessibilityAccessDescription \
 		-string "$(ACCESSIBILITY_DESCRIPTION)" "$(CONTENTS_DIR)/Info.plist"
 	ditto --norsrc --noextattr "$(PREBUILT_SPARKLE_FRAMEWORK)" "$(FRAMEWORKS_DIR)/Sparkle.framework"
-	@if [[ -n "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" ]]; then \
-		ditto --norsrc --noextattr "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" \
-			"$(RESOURCES_DIR)/PermissionFlow_PermissionFlow.bundle"; \
-	fi
+	ditto --norsrc --noextattr "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" \
+		"$(RESOURCES_DIR)/PermissionFlow_PermissionFlow.bundle"
 	@if ! otool -l "$(MACOS_DIR)/Drift" | grep -A2 LC_RPATH | grep -Fq '@executable_path/../Frameworks'; then \
 		install_name_tool -add_rpath '@executable_path/../Frameworks' "$(MACOS_DIR)/Drift"; \
 	fi
