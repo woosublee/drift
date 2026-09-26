@@ -89,6 +89,11 @@ final class BuildIdentityScriptTests: XCTestCase {
                 atPath: resources.appendingPathComponent("MenuBarIcon-Inactive.svg").path
             )
         )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: resources.appendingPathComponent("PermissionFlow_PermissionFlow.bundle").path
+            )
+        )
     }
 
     func testOptimizedPythonRejectsInvalidConfiguredProductionKeyDuringAssembly() throws {
@@ -254,6 +259,10 @@ final class BuildIdentityScriptTests: XCTestCase {
 
         try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: framework, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: bin.appendingPathComponent("PermissionFlow_PermissionFlow.bundle", isDirectory: true),
+            withIntermediateDirectories: true
+        )
         try fileManager.createDirectory(at: tools, withIntermediateDirectories: true)
         try fileManager.createDirectory(
             at: root.appendingPathComponent("Resources", isDirectory: true),

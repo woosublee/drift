@@ -261,7 +261,6 @@ public final class DriftAppModel: ObservableObject {
     }
 
     public func openAccessibilitySettings() {
-        accessibility.requestAccess()
         accessibility.openSystemSettings()
     }
 

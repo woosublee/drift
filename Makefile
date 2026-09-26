@@ -36,8 +36,10 @@ MENU_BAR_INACTIVE_ICON := Resources/MenuBarIcon-Inactive.svg
 BIN_DIR = $(shell $(SWIFT) build -c $(CONFIGURATION) --show-bin-path)
 APP_EXECUTABLE ?= $(BIN_DIR)/Drift
 SPARKLE_FRAMEWORK ?= $(shell find "$(BIN_DIR)" -type d -name Sparkle.framework -print -quit)
+PERMISSION_FLOW_BUNDLE ?= $(shell find "$(BIN_DIR)" -maxdepth 1 -type d -name PermissionFlow_PermissionFlow.bundle -print -quit)
 PREBUILT_EXECUTABLE ?=
 PREBUILT_SPARKLE_FRAMEWORK ?=
+PREBUILT_PERMISSION_FLOW_BUNDLE ?=
 VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
 ENTITLEMENTS := Drift.entitlements
@@ -190,6 +192,7 @@ app: swift-build
 		BUILD_DIR="$(BUILD_DIR)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" \
 		PREBUILT_EXECUTABLE="$(APP_EXECUTABLE)" \
 		PREBUILT_SPARKLE_FRAMEWORK="$(SPARKLE_FRAMEWORK)" \
+		PREBUILT_PERMISSION_FLOW_BUNDLE="$(PERMISSION_FLOW_BUNDLE)" \
 		SPARKLE_FEED_URL="$(SPARKLE_FEED_URL)" \
 		SPARKLE_PUBLIC_ED_KEY="$(SPARKLE_PUBLIC_ED_KEY)"
 
@@ -200,6 +203,10 @@ bundle-prebuilt: validate-build-identity
 	fi
 	@if [[ -z "$(PREBUILT_SPARKLE_FRAMEWORK)" ]] || [[ ! -d "$(PREBUILT_SPARKLE_FRAMEWORK)" ]]; then \
 		echo "PREBUILT_SPARKLE_FRAMEWORK must name Sparkle.framework" >&2; \
+		exit 1; \
+	fi
+	@if [[ -z "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" ]] || [[ ! -d "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" ]]; then \
+		echo "PREBUILT_PERMISSION_FLOW_BUNDLE must name PermissionFlow_PermissionFlow.bundle" >&2; \
 		exit 1; \
 	fi
 	rm -rf "$(APP_DIR)" "$(APP_ICONSET_DIR)"
@@ -225,6 +232,8 @@ bundle-prebuilt: validate-build-identity
 	plutil -replace NSAccessibilityAccessDescription \
 		-string "$(ACCESSIBILITY_DESCRIPTION)" "$(CONTENTS_DIR)/Info.plist"
 	ditto --norsrc --noextattr "$(PREBUILT_SPARKLE_FRAMEWORK)" "$(FRAMEWORKS_DIR)/Sparkle.framework"
+	ditto --norsrc --noextattr "$(PREBUILT_PERMISSION_FLOW_BUNDLE)" \
+		"$(RESOURCES_DIR)/PermissionFlow_PermissionFlow.bundle"
 	@if ! otool -l "$(MACOS_DIR)/Drift" | grep -A2 LC_RPATH | grep -Fq '@executable_path/../Frameworks'; then \
 		install_name_tool -add_rpath '@executable_path/../Frameworks' "$(MACOS_DIR)/Drift"; \
 	fi

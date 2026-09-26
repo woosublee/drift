@@ -33,11 +33,18 @@ if [[ -z "$sparkle_framework" ]]; then
     exit 1
 fi
 
+permission_flow_bundle="$(find "$arm_bin" -maxdepth 1 -type d -name PermissionFlow_PermissionFlow.bundle -print -quit)"
+if [[ -z "$permission_flow_bundle" ]]; then
+    print -u2 -r -- "PermissionFlow_PermissionFlow.bundle was not produced by the arm64 SwiftPM build"
+    exit 1
+fi
+
 "$MAKE" -C "$repo_root" bundle-prebuilt \
     CONFIGURATION=release APP_VARIANT=production BUILD_DIR="$release_root" \
     CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Drift}" \
     PREBUILT_EXECUTABLE="$universal_executable" \
     PREBUILT_SPARKLE_FRAMEWORK="$sparkle_framework" \
+    PREBUILT_PERMISSION_FLOW_BUNDLE="$permission_flow_bundle" \
     SPARKLE_FEED_URL="$RELEASE_FEED_URL" \
     SPARKLE_PUBLIC_ED_KEY="$(plutil -extract SUPublicEDKey raw "$repo_root/Info.plist")"
 
