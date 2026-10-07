@@ -8,6 +8,7 @@ repo_root="${script_dir:h}"
 : "${MAKE:=make}"
 
 cd "$repo_root"
+source "$script_dir/release-version-lib.sh"
 eval "$("$script_dir/resolve-release-version.sh" shell)"
 
 release_root="$repo_root/build/release"
@@ -41,7 +42,7 @@ fi
 
 "$MAKE" -C "$repo_root" bundle-prebuilt \
     CONFIGURATION=release APP_VARIANT=production BUILD_DIR="$release_root" \
-    CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Drift}" \
+    CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-$RELEASE_CODESIGN_IDENTITY}" \
     PREBUILT_EXECUTABLE="$universal_executable" \
     PREBUILT_SPARKLE_FRAMEWORK="$sparkle_framework" \
     PREBUILT_PERMISSION_FLOW_BUNDLE="$permission_flow_bundle" \

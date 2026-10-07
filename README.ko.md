@@ -31,11 +31,11 @@ Drift는 사용자의 실제 입력이 없는 시간을 기다린 뒤 설정된 
 
 Drift가 cursor를 움직이고 선택적 click을 실행하려면 macOS Accessibility 권한이 필요합니다. `Drift`와 `Drift Dev`는 서로 다른 Bundle ID를 사용하므로 macOS가 각 앱의 권한과 설정을 독립적으로 관리합니다.
 
-Drift에는 analytics가 없습니다. Production release는 Sparkle 2.9.2를 사용해 stable release feed의 서명된 업데이트를 제공합니다. Production artifact는 self-signed `Drift` identity를 사용하므로 Gatekeeper 경고가 표시될 수 있으며 notarization된 앱이 아닙니다. Development bundle에는 feed URL과 Sparkle public key가 모두 포함되지 않습니다. dry-run과 공개 배포 안전장치를 포함한 운영 절차는 [release runbook](docs/releasing.md)을 참고하세요.
+Drift에는 analytics가 없습니다. Production release는 Sparkle 2.9.2를 사용해 stable release feed의 서명된 업데이트를 제공합니다. Production artifact는 Developer ID Application 인증서로 서명되고 Apple notarization을 거치며, notarization ticket은 앱과 DMG 모두에 staple됩니다. Development bundle에는 feed URL과 Sparkle public key가 모두 포함되지 않습니다. dry-run과 공개 배포 안전장치를 포함한 운영 절차는 [release runbook](docs/releasing.md)을 참고하세요.
 
 ## 릴리즈 설치
 
-[GitHub Releases](https://github.com/woosublee/drift/releases)에서 DMG를 다운로드하고 `Drift.app`을 응용 프로그램 폴더로 드래그한 다음, 처음 한 번은 설치된 앱을 Control-클릭하여 **열기**를 선택하세요. 현재 릴리즈는 self-signed 상태이며 notarization되지 않았기 때문에 macOS가 명시적인 실행 확인을 요구할 수 있습니다. Drift가 실행되면 메뉴 막대 아이콘을 사용하세요. 의도적으로 Dock icon이나 일반 앱 창은 표시하지 않습니다.
+[GitHub Releases](https://github.com/woosublee/drift/releases)에서 DMG를 다운로드하고 `Drift.app`을 응용 프로그램 폴더로 드래그한 다음 실행하세요. 0.1.6 이하 릴리즈는 self-signed였습니다. 해당 버전에서 Sparkle로 업데이트하는 것은 정상 동작하지만, 서명 identity가 바뀌었기 때문에 Accessibility 권한을 한 번 다시 허용해야 합니다. Drift가 실행되면 메뉴 막대 아이콘을 사용하세요. 의도적으로 Dock icon이나 일반 앱 창은 표시하지 않습니다.
 
 ## 빌드 및 실행
 
@@ -53,19 +53,20 @@ cd drift
 swift test
 ```
 
-Accessibility 검증에 사용할 안정적인 local signing identity를 생성합니다.
+Bundle은 기본적으로 maintainer의 `Developer ID Application` identity로 서명되며, 덕분에 다시 빌드해도 Accessibility 승인이 유지됩니다. identity가 사용 가능한지 확인합니다.
 
 ```bash
-make create-local-certificate
+make check-signing-identity
 ```
+
+해당 identity가 없다면 `CODESIGN_IDENTITY=-`로 ad-hoc 서명을 사용하세요.
 
 `Drift Dev`를 빌드하고 검증합니다.
 
 ```bash
 make verify-app \
   CONFIGURATION=debug \
-  BUILD_DIR=/tmp/drift-bundles/dev \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/dev
 
 open "/tmp/drift-bundles/dev/Drift Dev.app"
 ```
@@ -93,13 +94,11 @@ swift test
 ```bash
 make verify-app \
   CONFIGURATION=debug \
-  BUILD_DIR=/tmp/drift-bundles/dev \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/dev
 
 make verify-app \
   CONFIGURATION=release \
-  BUILD_DIR=/tmp/drift-bundles/production \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/production
 ```
 
 사용자가 직접 수행하는 macOS 검증 항목은 [docs/manual-verification.md](docs/manual-verification.md)에 정리되어 있습니다. 체크되지 않은 항목은 자동 검증 통과로 간주하지 않습니다.

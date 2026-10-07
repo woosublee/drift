@@ -1,4 +1,4 @@
-name: Self-signed Release
+name: Notarized Release
 
 on:
   push:
@@ -23,8 +23,11 @@ jobs:
   release:
     runs-on: macos-latest
     env:
-      CERTIFICATE_BASE64: ${{ secrets.DRIFT_CERTIFICATE_BASE64 }}
-      CERTIFICATE_PASSWORD: ${{ secrets.DRIFT_CERTIFICATE_PASSWORD }}
+      CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
+      NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+      NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -65,16 +68,24 @@ jobs:
           print -r -- "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           print -r -- "publish_requested=$publish_requested" >> "$GITHUB_OUTPUT"
 
-      - name: Import temporary signing identity
+      - name: Import temporary signing identity and notary key
         shell: zsh {0}
         run: |
           set -euo pipefail
-          [[ -n "$CERTIFICATE_BASE64" ]] || { print -u2 -r -- 'DRIFT_CERTIFICATE_BASE64 secret is required'; exit 1; }
-          [[ -n "$CERTIFICATE_PASSWORD" ]] || { print -u2 -r -- 'DRIFT_CERTIFICATE_PASSWORD secret is required'; exit 1; }
+          [[ -n "$CERTIFICATE_BASE64" ]] || { print -u2 -r -- 'DEVELOPER_ID_CERTIFICATE_BASE64 secret is required'; exit 1; }
+          [[ -n "$CERTIFICATE_PASSWORD" ]] || { print -u2 -r -- 'DEVELOPER_ID_CERTIFICATE_PASSWORD secret is required'; exit 1; }
+          [[ -n "$NOTARY_API_KEY_BASE64" ]] || { print -u2 -r -- 'NOTARY_API_KEY_BASE64 secret is required'; exit 1; }
+          [[ -n "$NOTARY_API_KEY_ID" ]] || { print -u2 -r -- 'NOTARY_API_KEY_ID secret is required'; exit 1; }
+          [[ -n "$NOTARY_API_ISSUER_ID" ]] || { print -u2 -r -- 'NOTARY_API_ISSUER_ID secret is required'; exit 1; }
           [[ -n "$SPARKLE_PRIVATE_KEY" ]] || { print -u2 -r -- 'SPARKLE_PRIVATE_KEY secret is required'; exit 1; }
           print -r -- "::add-mask::$CERTIFICATE_BASE64"
           print -r -- "::add-mask::$CERTIFICATE_PASSWORD"
+          print -r -- "::add-mask::$NOTARY_API_KEY_BASE64"
           print -r -- "::add-mask::$SPARKLE_PRIVATE_KEY"
+          NOTARY_API_KEY_PATH="$RUNNER_TEMP/drift-notary-key.p8"
+          printf '%s' "$NOTARY_API_KEY_BASE64" | base64 --decode > "$NOTARY_API_KEY_PATH"
+          chmod 600 "$NOTARY_API_KEY_PATH"
+          printf 'NOTARY_API_KEY_PATH=%s\n' "$NOTARY_API_KEY_PATH" >> "$GITHUB_ENV"
           KEYCHAIN_PATH="$RUNNER_TEMP/drift-release.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
           print -r -- "::add-mask::$KEYCHAIN_PASSWORD"
@@ -92,6 +103,10 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security import "$RUNNER_TEMP/drift-certificate.p12" \
             -P "$CERTIFICATE_PASSWORD" -t cert -f pkcs12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          curl --fail --silent --show-error --location \
+            https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+            --output "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" $ORIGINAL_KEYCHAINS
           security default-keychain -d user -s "$KEYCHAIN_PATH"
@@ -106,7 +121,9 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --output build/release/previous-release.json \
             --exclude-tag "$RELEASE_TAG"
-          make verify-release-artifacts CODESIGN_IDENTITY=Drift
+          make check-signing-identity
+          make check-notary-credentials
+          make verify-release-artifacts
           scripts/check-release-monotonic.sh \
             --repository "$GITHUB_REPOSITORY" \
             --output build/release/previous-release.json \
@@ -153,4 +170,4 @@ jobs:
             security default-keychain -d user -s "$ORIGINAL_DEFAULT_KEYCHAIN"
           fi
           security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/drift-certificate.p12"
+          rm -f "$RUNNER_TEMP/drift-certificate.p12" "$RUNNER_TEMP/drift-notary-key.p8"

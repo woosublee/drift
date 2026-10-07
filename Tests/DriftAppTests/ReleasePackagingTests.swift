@@ -31,9 +31,40 @@ final class ReleasePackagingTests: XCTestCase {
 
         XCTAssertEqual(result.status, 0, result.output)
         let log = try String(contentsOf: fixture.appendingPathComponent("tool.log"))
-        let sign = try XCTUnwrap(log.range(of: "codesign --force --sign Drift"))
+        let sign = try XCTUnwrap(log.range(of: "codesign --force --timestamp --sign Drift"))
         let verify = try XCTUnwrap(log.range(of: "codesign --verify --strict"))
         XCTAssertLessThan(sign.lowerBound, verify.lowerBound)
+    }
+
+    // Break caught: stapling after the appcast is generated changes the DMG bytes Sparkle signed,
+    // and an unstapled app copied out of the DMG needs a network check on first launch.
+    func testPackagerNotarizesAppBeforeStagingAndSignedDMGLast() throws {
+        let fixture = try makePackagingFixture()
+        let result = try runPackager(in: fixture)
+
+        XCTAssertEqual(result.status, 0, result.output)
+        let log = try String(contentsOf: fixture.appendingPathComponent("tool.log"))
+        let appNotarization = try XCTUnwrap(log.range(of: #"notarize \S*/build/release/Drift\.app\n"#, options: .regularExpression))
+        let staging = try XCTUnwrap(log.range(of: "ditto "))
+        let dmgSigning = try XCTUnwrap(log.range(of: "codesign --force --timestamp --sign"))
+        let dmgNotarization = try XCTUnwrap(log.range(of: #"notarize \S*/build/release/Drift-0\.1\.0\.dmg\n"#, options: .regularExpression))
+        let finalVerification = try XCTUnwrap(log.range(of: "codesign --verify --strict", options: .backwards))
+
+        XCTAssertLessThan(appNotarization.lowerBound, staging.lowerBound)
+        XCTAssertLessThan(dmgSigning.lowerBound, dmgNotarization.lowerBound)
+        XCTAssertLessThan(dmgNotarization.lowerBound, finalVerification.lowerBound)
+    }
+
+    func testPackagerDefaultsToDeveloperIDIdentity() throws {
+        let fixture = try makePackagingFixture()
+        let result = try runPackager(in: fixture, identity: nil)
+
+        XCTAssertEqual(result.status, 0, result.output)
+        let log = try String(contentsOf: fixture.appendingPathComponent("tool.log"))
+        XCTAssertTrue(
+            log.contains("codesign --force --timestamp --sign Developer ID Application: Woosub Lee (2L6ZW98RCP)"),
+            log
+        )
     }
 
     private var sourceRoot: URL {
@@ -138,23 +169,33 @@ final class ReleasePackagingTests: XCTestCase {
         """.write(to: tools.appendingPathComponent("codesign"), atomically: true, encoding: .utf8)
         try makeExecutable(tools.appendingPathComponent("codesign"))
 
+        try """
+        #!/bin/zsh
+        set -euo pipefail
+        print -r -- "notarize $*" >> "$TOOL_LOG"
+        [[ -e "$1" ]]
+        """.write(to: tools.appendingPathComponent("notarize"), atomically: true, encoding: .utf8)
+        try makeExecutable(tools.appendingPathComponent("notarize"))
+
         addTeardownBlock {
             try? fileManager.removeItem(at: fixture)
         }
         return fixture
     }
 
-    private func runPackager(in fixture: URL) throws -> TestProcessResult {
-        try ProcessTestSupport.run(
+    private func runPackager(in fixture: URL, identity: String? = "Drift") throws -> TestProcessResult {
+        var environment = [
+            "HDIUTIL": fixture.appendingPathComponent("tools/hdiutil").path,
+            "CODESIGN": fixture.appendingPathComponent("tools/codesign").path,
+            "DITTO": fixture.appendingPathComponent("tools/ditto").path,
+            "NOTARIZE": fixture.appendingPathComponent("tools/notarize").path,
+            "TOOL_LOG": fixture.appendingPathComponent("tool.log").path
+        ]
+        environment["CODESIGN_IDENTITY"] = identity
+        return try ProcessTestSupport.run(
             executable: "/bin/zsh",
             arguments: [fixture.appendingPathComponent("scripts/package-release-dmg.sh").path],
-            environment: [
-                "HDIUTIL": fixture.appendingPathComponent("tools/hdiutil").path,
-                "CODESIGN": fixture.appendingPathComponent("tools/codesign").path,
-                "DITTO": fixture.appendingPathComponent("tools/ditto").path,
-                "CODESIGN_IDENTITY": "Drift",
-                "TOOL_LOG": fixture.appendingPathComponent("tool.log").path
-            ],
+            environment: environment,
             currentDirectory: fixture
         )
     }

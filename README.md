@@ -31,11 +31,11 @@ Drift is a native macOS menu bar utility that waits for idle time before perform
 
 Drift needs macOS Accessibility permission to move the pointer and issue optional clicks. `Drift` and `Drift Dev` use separate Bundle IDs, so macOS manages their permissions and settings independently.
 
-Drift includes no analytics. Production releases use Sparkle 2.9.2 to deliver signed updates from the stable release feed. Production artifacts use a self-signed `Drift` identity, so Gatekeeper may show a warning; they are not notarized. Development bundles contain neither a feed URL nor a Sparkle public key. See the [release runbook](docs/releasing.md) for the operator process, including dry-runs and publication safeguards.
+Drift includes no analytics. Production releases use Sparkle 2.9.2 to deliver signed updates from the stable release feed. Production artifacts are signed with a Developer ID Application certificate and notarized by Apple, with the notarization ticket stapled to both the app and the DMG. Development bundles contain neither a feed URL nor a Sparkle public key. See the [release runbook](docs/releasing.md) for the operator process, including dry-runs and publication safeguards.
 
 ## Install a release
 
-Download the DMG from [GitHub Releases](https://github.com/woosublee/drift/releases), drag `Drift.app` into Applications, then Control-click the installed app and choose **Open** for the first launch. macOS may require this explicit confirmation because the current release is self-signed and not notarized. After Drift starts, use its menu-bar icon; it intentionally has no Dock icon or normal app window.
+Download the DMG from [GitHub Releases](https://github.com/woosublee/drift/releases), drag `Drift.app` into Applications, and open it. Releases up to 0.1.6 were self-signed; updating from one of them through Sparkle works normally, but Accessibility permission has to be granted once more because the signing identity changed. After Drift starts, use its menu-bar icon; it intentionally has no Dock icon or normal app window.
 
 ## Build and run
 
@@ -53,19 +53,20 @@ cd drift
 swift test
 ```
 
-Create the stable local signing identity used for Accessibility testing:
+Bundles are signed with the maintainer's `Developer ID Application` identity by default, which keeps Accessibility approval stable across rebuilds. Confirm it is available:
 
 ```bash
-make create-local-certificate
+make check-signing-identity
 ```
+
+Without that identity, pass `CODESIGN_IDENTITY=-` for an ad-hoc signature.
 
 Build and verify `Drift Dev`:
 
 ```bash
 make verify-app \
   CONFIGURATION=debug \
-  BUILD_DIR=/tmp/drift-bundles/dev \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/dev
 
 open "/tmp/drift-bundles/dev/Drift Dev.app"
 ```
@@ -93,13 +94,11 @@ Verify both signed identities:
 ```bash
 make verify-app \
   CONFIGURATION=debug \
-  BUILD_DIR=/tmp/drift-bundles/dev \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/dev
 
 make verify-app \
   CONFIGURATION=release \
-  BUILD_DIR=/tmp/drift-bundles/production \
-  CODESIGN_IDENTITY=Drift
+  BUILD_DIR=/tmp/drift-bundles/production
 ```
 
 User-run macOS checks are documented in [docs/manual-verification.md](docs/manual-verification.md). Unchecked items are intentionally not presented as automated pass claims.

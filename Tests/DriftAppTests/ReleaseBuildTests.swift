@@ -32,7 +32,7 @@ final class ReleaseBuildTests: XCTestCase {
         let helper = String(makefile[helperStart..<frameworkStart])
 
         XCTAssertTrue(
-            helper.contains("codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$$1\"")
+            helper.contains("codesign --force --options runtime --timestamp --sign \"$(CODESIGN_IDENTITY)\" \"$$1\"")
         )
         for path in [
             "$$framework/XPCServices/Installer.xpc",
@@ -47,12 +47,12 @@ final class ReleaseBuildTests: XCTestCase {
         }
         XCTAssertTrue(
             makefile.contains(
-                "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
+                "codesign --force --options runtime --timestamp --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
             )
         )
         XCTAssertTrue(
             makefile.contains(
-                "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \\\n\t\t\t--entitlements \"$(ENTITLEMENTS)\" \"$(APP_DIR)\""
+                "codesign --force --options runtime --timestamp --sign \"$(CODESIGN_IDENTITY)\" \\\n\t\t\t--entitlements \"$(ENTITLEMENTS)\" \"$(APP_DIR)\""
             )
         )
     }

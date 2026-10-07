@@ -23,7 +23,7 @@ final class BundleSigningMetadataTests: XCTestCase {
 
     func testMakefileRunsMetadataGuardAfterFrameworkSigningBeforeAppSigning() throws {
         let makefile = try String(contentsOf: sourceRoot.appendingPathComponent("Makefile"))
-        let frameworkSigning = "codesign --force --options runtime --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
+        let frameworkSigning = "codesign --force --options runtime --timestamp --sign \"$(CODESIGN_IDENTITY)\" \"$(FRAMEWORKS_DIR)/Sparkle.framework\""
         let cleanup = "find \"$(APP_DIR)\" -depth -exec xattr -d com.apple.FinderInfo"
         let guardDefinition = "VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh"
         let guardInvocation = "$(SHELL) $(VERIFY_SIGNING_XATTRS) \"$(APP_DIR)\""

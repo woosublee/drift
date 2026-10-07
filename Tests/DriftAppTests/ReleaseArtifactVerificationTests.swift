@@ -37,6 +37,24 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
         XCTAssertEqual(result.status, 0, result.output)
     }
 
+    // Break caught: a release signed outside the Developer ID team would install but strand TCC and Gatekeeper trust.
+    func testVerifierRejectsSignatureFromAnotherTeam() throws {
+        let fixture = try makeArtifactVerificationFixture()
+        let result = try runVerifier(in: fixture, teamIdentifier: "")
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("must be signed by Developer ID team 2L6ZW98RCP"), result.output)
+    }
+
+    // Break caught: shipping a signed but unnotarized release makes Gatekeeper block first launch.
+    func testVerifierRejectsReleaseWithoutStapledNotarization() throws {
+        let fixture = try makeArtifactVerificationFixture()
+        let result = try runVerifier(in: fixture, notarized: false)
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.output.contains("does not carry a stapled notarization ticket"), result.output)
+    }
+
     // Break caught: accepting a release executable that lacks an Intel slice.
     func testVerifierRejectsNonUniversalExecutable() throws {
         let fixture = try makeArtifactVerificationFixture(architectures: ["arm64"])
@@ -346,10 +364,35 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
             named: "codesign",
             in: tools,
             content: """
-            if [[ "$1" == "-d" ]]; then
+            if [[ "$1" == "-dv" ]]; then
+                print -u2 -r -- "TeamIdentifier=$SIGNING_TEAM_IDENTIFIER"
+                print -u2 -r -- "Timestamp=Oct 7, 2026 at 9:00:00 PM"
+            elif [[ "$1" == "-d" ]]; then
                 [[ "$2" == --extract-certificates=* ]]
                 prefix="${2#--extract-certificates=}"
                 print -rn -- certificate > "${prefix}0"
+            fi
+            """
+        )
+        try makeTool(
+            named: "xcrun",
+            in: tools,
+            content: """
+            [[ "$1" == "stapler" && "$2" == "validate" ]]
+            [[ "$NOTARIZED" == "1" ]]
+            """
+        )
+        try makeTool(
+            named: "spctl",
+            in: tools,
+            content: """
+            [[ "$1" == "--assess" ]]
+            if [[ "$NOTARIZED" == "1" ]]; then
+                print -u2 -r -- "${@[-1]}: accepted"
+                print -u2 -r -- "source=Notarized Developer ID"
+            else
+                print -u2 -r -- "${@[-1]}: rejected"
+                exit 3
             fi
             """
         )
@@ -422,7 +465,9 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
     private func runVerifier(
         in fixture: URL,
         verifySignature: Bool = true,
-        mountedArchitectures: [String]? = nil
+        mountedArchitectures: [String]? = nil,
+        teamIdentifier: String = "2L6ZW98RCP",
+        notarized: Bool = true
     ) throws -> TestProcessResult {
         try ProcessTestSupport.run(
             executable: "/bin/zsh",
@@ -449,6 +494,10 @@ final class ReleaseArtifactVerificationTests: XCTestCase {
                 "SPARKLE_SIGN_UPDATE": fixture.appendingPathComponent("tools/sign_update").path,
                 "VERIFY_SIGNATURE": verifySignature ? "1" : "0",
                 "MOUNTED_ARCHITECTURES": mountedArchitectures?.joined(separator: " ") ?? "",
+                "NOTARIZED": notarized ? "1" : "0",
+                "SIGNING_TEAM_IDENTIFIER": teamIdentifier,
+                "SPCTL": fixture.appendingPathComponent("tools/spctl").path,
+                "XCRUN": fixture.appendingPathComponent("tools/xcrun").path,
                 "STARTUP_GRACE_SECONDS": "0.1"
             ],
             currentDirectory: fixture

@@ -173,7 +173,7 @@ final class ReleasePublishingTests: XCTestCase {
         """)
         try makeTool(named: "make", in: tools, content: """
         case "$*" in
-            *"release-metadata-check"*|*"check-local-certificate"*|*"check-eddsa-key"*|*"verify-release-artifacts"*) exit 0 ;;
+            *"release-metadata-check"*|*"check-signing-identity"*|*"check-notary-credentials"*|*"check-eddsa-key"*|*"verify-release-artifacts"*) exit 0 ;;
             *"test"*) exit 0 ;;
             *) print -u2 -r -- "unexpected make: $*"; exit 2 ;;
         esac
