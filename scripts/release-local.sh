@@ -51,7 +51,8 @@ case "$repository_url" in
 esac
 "$MAKE" test
 "$GH" auth status >/dev/null
-"$MAKE" check-local-certificate
+"$MAKE" check-signing-identity
+"$MAKE" check-notary-credentials
 "$MAKE" check-eddsa-key
 
 monotonicity_output="build/release/previous-release.json"

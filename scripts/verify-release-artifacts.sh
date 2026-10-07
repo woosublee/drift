@@ -10,6 +10,8 @@ repo_root="$script_dir:h"
 : "${LIPO:=lipo}"
 : "${OPENSSL:=openssl}"
 : "${PLUTIL:=plutil}"
+: "${SPCTL:=spctl}"
+: "${XCRUN:=xcrun}"
 
 usage() {
     print -u2 -r -- "usage: $0 --source-plist FILE --app APP --dmg DMG --appcast FILE --provenance FILE [--previous-appcast FILE]"
@@ -156,6 +158,46 @@ verify_app_metadata() {
         release_fail "$label architectures mismatch: expected arm64 x86_64; found ${architectures:-none}"
 }
 
+verify_developer_id_signature() {
+    local candidate="$1"
+    local label="$2"
+    local details
+    details="$("$CODESIGN" -dv --verbose=2 "$candidate" 2>&1)" || {
+        release_fail "could not read $label signature"
+        return 1
+    }
+    grep -Fxq "TeamIdentifier=$RELEASE_TEAM_ID" <<<"$details" || {
+        release_fail "$label must be signed by Developer ID team $RELEASE_TEAM_ID"
+        return 1
+    }
+    grep -Eq '^Timestamp=' <<<"$details" || {
+        release_fail "$label signature must carry a secure timestamp"
+        return 1
+    }
+}
+
+verify_notarization() {
+    local candidate="$1"
+    local label="$2"
+    local assessment
+    "$XCRUN" stapler validate "$candidate" >/dev/null 2>&1 || {
+        release_fail "$label does not carry a stapled notarization ticket"
+        return 1
+    }
+    if [[ "$candidate" == *.dmg ]]; then
+        assessment="$("$SPCTL" --assess --type open --context context:primary-signature --verbose=2 "$candidate" 2>&1)"
+    else
+        assessment="$("$SPCTL" --assess --type execute --verbose=2 "$candidate" 2>&1)"
+    fi || {
+        release_fail "$label was rejected by Gatekeeper"
+        return 1
+    }
+    grep -Fq 'source=Notarized Developer ID' <<<"$assessment" || {
+        release_fail "$label Gatekeeper source must be Notarized Developer ID"
+        return 1
+    }
+}
+
 extract_certificate_metadata() {
     local candidate_app="$1"
     local certificate_directory
@@ -176,10 +218,14 @@ extract_certificate_metadata() {
     certificate_common_name="$("$OPENSSL" x509 -inform DER -in "$certificate" -noout -subject -nameopt RFC2253 | python3 -c '
 import re
 import sys
-match = re.fullmatch(r"subject=CN=([^,]+)", sys.stdin.read().strip())
-if not match:
-    raise SystemExit("ERROR: signing certificate subject must contain only CN")
-print(match.group(1))
+
+subject = sys.stdin.read().strip()
+if not subject.startswith("subject="):
+    raise SystemExit("ERROR: could not parse signing certificate subject")
+names = [part.group(1) for part in re.finditer(r"(?:^|,)CN=((?:[^,\\]|\\.)+)", subject[len("subject="):])]
+if len(names) != 1:
+    raise SystemExit("ERROR: signing certificate subject must contain exactly one CN")
+print(names[0])
 ')" || {
         rm -rf "$certificate_directory"
         return 1
@@ -210,7 +256,11 @@ verify_version_and_build "$source_plist" "source Info.plist"
 
 verify_app_metadata "$app" "release app" "$source_key"
 "$CODESIGN" --verify --deep --strict --verbose=2 "$app"
+verify_developer_id_signature "$app" "release app"
+verify_notarization "$app" "release app"
 "$CODESIGN" --verify --strict --verbose=2 "$dmg"
+verify_developer_id_signature "$dmg" "release DMG"
+verify_notarization "$dmg" "release DMG"
 
 mountpoint="$(mktemp -d "${TMPDIR:-/tmp}/drift-release-verification-mount.XXXXXX")"
 mounted=0
@@ -229,6 +279,10 @@ if ! verify_app_metadata "$mounted_app" "mounted DMG app" "$source_key"; then
     exit 1
 fi
 if ! "$CODESIGN" --verify --deep --strict --verbose=2 "$mounted_app"; then
+    exit 1
+fi
+if ! verify_developer_id_signature "$mounted_app" "mounted DMG app" || \
+    ! verify_notarization "$mounted_app" "mounted DMG app"; then
     exit 1
 fi
 if ! "$CODESIGN" --verify --strict --verbose=2 "$dmg"; then

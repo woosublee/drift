@@ -9,8 +9,10 @@ SECURITY ?= security
 CODESIGN ?= codesign
 SIPS ?= sips
 ICONUTIL ?= iconutil
-CODESIGN_IDENTITY ?= Drift
-LOCAL_CERTIFICATE_IDENTITY ?= Drift
+DEVELOPER_ID_TEAM ?= 2L6ZW98RCP
+DEVELOPER_ID_IDENTITY ?= Developer ID Application: Woosub Lee ($(DEVELOPER_ID_TEAM))
+CODESIGN_IDENTITY ?= $(DEVELOPER_ID_IDENTITY)
+NOTARIZE ?= scripts/notarize-release.sh
 SPARKLE_KEYCHAIN_SERVICE ?= https://sparkle-project.org
 SPARKLE_ACCOUNT ?= com.woosublee.drift.sparkle.ed25519
 SPARKLE_GENERATE_KEYS ?= .build/artifacts/sparkle/Sparkle/bin/generate_keys
@@ -44,7 +46,7 @@ VERIFY_BUNDLE := scripts/verify-app-bundle.sh
 VERIFY_SIGNING_XATTRS := scripts/verify-bundle-signing-xattrs.sh
 ENTITLEMENTS := Drift.entitlements
 
-.PHONY: test swift-build app bundle-prebuilt release-app release-dmg release-appcast release-provenance verify-release-artifacts verify-release-dmg verify-app release-dry-run run clean print-release-credential-config create-local-certificate check-local-certificate sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
+.PHONY: test swift-build app bundle-prebuilt release-app release-dmg release-appcast release-provenance verify-release-artifacts verify-release-dmg verify-app release-dry-run run clean print-release-credential-config check-signing-identity check-notary-credentials sparkle-tools generate-eddsa-key check-eddsa-key validate-build-identity release-metadata-check print-release-version print-release-build print-release-tag
 
 release-metadata-check:
 	@$(RELEASE_RESOLVER) validate
@@ -64,64 +66,31 @@ test:
 
 print-release-credential-config:
 	@printf '%s\n' \
-		'LOCAL_CERTIFICATE_IDENTITY=$(LOCAL_CERTIFICATE_IDENTITY)' \
+		'DEVELOPER_ID_IDENTITY=$(DEVELOPER_ID_IDENTITY)' \
 		'SPARKLE_KEYCHAIN_SERVICE=$(SPARKLE_KEYCHAIN_SERVICE)' \
 		'SPARKLE_ACCOUNT=$(SPARKLE_ACCOUNT)'
 
-create-local-certificate:
-	@if $(SECURITY) find-identity -v -p codesigning | grep -Fq '"$(LOCAL_CERTIFICATE_IDENTITY)"'; then \
-		echo "Reusing existing code signing identity: $(LOCAL_CERTIFICATE_IDENTITY)"; \
-	elif $(SECURITY) find-certificate -c "$(LOCAL_CERTIFICATE_IDENTITY)" >/dev/null 2>&1; then \
-		echo "Certificate exists without a usable private-key identity: $(LOCAL_CERTIFICATE_IDENTITY)" >&2; \
+check-signing-identity:
+	@[[ "$(DEVELOPER_ID_IDENTITY)" == "Developer ID Application: "*" ($(DEVELOPER_ID_TEAM))" ]] || { \
+		echo "DEVELOPER_ID_IDENTITY must be a Developer ID Application identity for team $(DEVELOPER_ID_TEAM)" >&2; \
 		exit 1; \
-	else \
-		tmpdir="$$(mktemp -d)"; \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		printf '%s\n' \
-			'[req]' \
-			'distinguished_name = req_distinguished_name' \
-			'x509_extensions = v3_req' \
-			'prompt = no' \
-			'[req_distinguished_name]' \
-			'CN = $(LOCAL_CERTIFICATE_IDENTITY)' \
-			'[v3_req]' \
-			'basicConstraints = critical,CA:false' \
-			'keyUsage = critical,digitalSignature' \
-			'extendedKeyUsage = critical,codeSigning' \
-			> "$$tmpdir/openssl.cnf"; \
-		openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-			-keyout "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).key" \
-			-out "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).crt" \
-			-config "$$tmpdir/openssl.cnf" >/dev/null 2>&1; \
-		p12_password="$$(openssl rand -base64 24)"; \
-		legacy_args=(); \
-		if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then legacy_args=(-legacy); fi; \
-		openssl pkcs12 "$${legacy_args[@]}" -export \
-			-passout pass:"$$p12_password" \
-			-inkey "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).key" \
-			-in "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).crt" \
-			-out "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).p12" \
-			-name "$(LOCAL_CERTIFICATE_IDENTITY)" >/dev/null 2>&1; \
-		keychain="$$($(SECURITY) default-keychain | sed 's/^ *//; s/"//g')"; \
-		$(SECURITY) import "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).p12" \
-			-k "$$keychain" -P "$$p12_password" -T /usr/bin/codesign >/dev/null; \
-		$(SECURITY) add-trusted-cert -d -r trustRoot -p codeSign \
-			-k "$$keychain" "$$tmpdir/$(LOCAL_CERTIFICATE_IDENTITY).crt" >/dev/null; \
-	fi
-	@$(MAKE) check-local-certificate
-
-check-local-certificate:
-	@identity_fingerprint="$$($(SECURITY) find-identity -v -p codesigning | python3 -c 'import re,sys; identity=re.escape(sys.argv[1]); pattern=re.compile(r"\s*\d+\)\s+([0-9A-F]{40})\s+" + chr(34) + identity + chr(34)); matches=[match.group(1) for line in sys.stdin for match in [pattern.fullmatch(line.rstrip())] if match]; require=lambda condition,message: condition or (_ for _ in ()).throw(SystemExit(message)); require(len(matches) == 1,f"Expected exactly one usable {sys.argv[1]} identity; found {len(matches)}"); print(matches[0])' "$(LOCAL_CERTIFICATE_IDENTITY)")" || exit $$?; \
-		certificate="$$($(SECURITY) find-certificate -c "$(LOCAL_CERTIFICATE_IDENTITY)" -a -p | python3 -c 'import base64,hashlib,re,sys; expected=sys.argv[1]; blocks=re.findall(r"-----BEGIN CERTIFICATE-----\s*.*?-----END CERTIFICATE-----",sys.stdin.read(),re.S); matches=[]; [(matches.append(block) if hashlib.sha1(base64.b64decode(re.sub(r"-----BEGIN CERTIFICATE-----|-----END CERTIFICATE-----|\s", "", block),validate=True)).hexdigest().upper() == expected else None) for block in blocks]; require=lambda condition,message: condition or (_ for _ in ()).throw(SystemExit(message)); require(len(matches) == 1,f"Expected exactly one same-CN certificate matching usable identity fingerprint; found {len(matches)}"); print(matches[0])' "$$identity_fingerprint")" || exit $$?; \
-		printf '%s' "$$certificate" | python3 -c 'import datetime,re,subprocess,sys; certificate=sys.stdin.buffer.read(); identity=sys.argv[1]; require=lambda condition,message: condition or (_ for _ in ()).throw(SystemExit(message)); run=lambda *args: subprocess.run(["openssl","x509","-noout",*args],input=certificate,stdout=subprocess.PIPE,check=True).stdout.decode(); subject=run("-subject","-nameopt","RFC2253").strip(); require(subject == f"subject=CN={identity}",subject); text=run("-text"); require("Public-Key: (2048 bit)" in text,"Expected RSA-2048 public key"); require("Signature Algorithm: sha256WithRSAEncryption" in text,"Expected SHA-256 certificate signature"); extension_value=lambda name: (lambda match: match.group(1).strip() if match else (_ for _ in ()).throw(SystemExit(f"missing critical {name}")))(re.search(rf"X509v3 {re.escape(name)}: critical\s*\n\s*([^\n]+)",text)); require(extension_value("Basic Constraints") == "CA:FALSE","Expected critical Basic Constraints CA:FALSE"); require(extension_value("Key Usage") == "Digital Signature","Expected critical Key Usage Digital Signature"); require(extension_value("Extended Key Usage") == "Code Signing","Expected critical Extended Key Usage Code Signing"); dates=dict(line.split("=",1) for line in run("-startdate","-enddate").splitlines()); date_format="%b %d %H:%M:%S %Y %Z"; parse_date=lambda value: datetime.datetime.strptime(value,date_format).replace(tzinfo=datetime.timezone.utc); not_before=parse_date(dates["notBefore"]); not_after=parse_date(dates["notAfter"]); require(not_after-not_before == datetime.timedelta(days=3650),f"Expected 3650-day certificate validity; found {not_after-not_before}")' "$(LOCAL_CERTIFICATE_IDENTITY)"
+	}
+	@matches="$$($(SECURITY) find-identity -v -p codesigning | grep -cF '"$(DEVELOPER_ID_IDENTITY)"')"; \
+		[[ "$$matches" == 1 ]] || { \
+			echo "Expected exactly one usable identity named $(DEVELOPER_ID_IDENTITY); found $$matches" >&2; \
+			exit 1; \
+		}
 	@tmpdir="$$(mktemp -d)"; \
 		trap 'rm -rf "$$tmpdir"' EXIT; \
 		probe="$$tmpdir/probe"; \
 		printf '#!/bin/sh\nexit 0\n' > "$$probe"; \
 		chmod +x "$$probe"; \
-		$(CODESIGN) --force --sign "$(LOCAL_CERTIFICATE_IDENTITY)" "$$probe" >/dev/null; \
+		$(CODESIGN) --force --options runtime --timestamp --sign "$(DEVELOPER_ID_IDENTITY)" "$$probe" >/dev/null; \
 		$(CODESIGN) --verify --strict --verbose=2 "$$probe"; \
-		echo "Code signing identity works: $(LOCAL_CERTIFICATE_IDENTITY)"
+		echo "Code signing identity works: $(DEVELOPER_ID_IDENTITY)"
+
+check-notary-credentials:
+	@$(NOTARIZE) --check
 
 sparkle-tools:
 	$(SWIFT) build -c debug
@@ -264,7 +233,7 @@ bundle-prebuilt: validate-build-identity
 			if [[ "$(CODESIGN_IDENTITY)" == "-" ]]; then \
 				codesign --force --sign "$(CODESIGN_IDENTITY)" "$$1"; \
 			else \
-				codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$$1"; \
+				codesign --force --options runtime --timestamp --sign "$(CODESIGN_IDENTITY)" "$$1"; \
 			fi; \
 		fi; \
 	}; \
@@ -276,7 +245,7 @@ bundle-prebuilt: validate-build-identity
 	if [[ "$(CODESIGN_IDENTITY)" == "-" ]]; then \
 		codesign --force --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"; \
 	else \
-		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"; \
+		codesign --force --options runtime --timestamp --sign "$(CODESIGN_IDENTITY)" "$(FRAMEWORKS_DIR)/Sparkle.framework"; \
 	fi
 	@find "$(APP_DIR)" -depth -exec xattr -d com.apple.FinderInfo {} + 2>/dev/null || true
 	@find "$(APP_DIR)" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P' {} + 2>/dev/null || true
@@ -286,7 +255,7 @@ bundle-prebuilt: validate-build-identity
 			--requirements '=designated => identifier "$(BUNDLE_IDENTIFIER)"' \
 			"$(APP_DIR)"; \
 	else \
-		codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" \
+		codesign --force --options runtime --timestamp --sign "$(CODESIGN_IDENTITY)" \
 			--entitlements "$(ENTITLEMENTS)" "$(APP_DIR)"; \
 	fi
 	@find "$(APP_DIR)" -depth -exec xattr -d com.apple.FinderInfo {} + 2>/dev/null || true

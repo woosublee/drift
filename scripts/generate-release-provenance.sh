@@ -78,10 +78,12 @@ import re
 import sys
 
 subject = sys.stdin.read().strip()
-match = re.fullmatch(r"subject=CN=([^,]+)", subject)
-if not match:
-    raise SystemExit("ERROR: signing certificate subject must contain only CN")
-print(match.group(1))
+if not subject.startswith("subject="):
+    raise SystemExit("ERROR: could not parse signing certificate subject")
+names = [part.group(1) for part in re.finditer(r"(?:^|,)CN=((?:[^,\\]|\\.)+)", subject[len("subject="):])]
+if len(names) != 1:
+    raise SystemExit("ERROR: signing certificate subject must contain exactly one CN")
+print(names[0])
 ')" || exit 1
 certificate_sha256="$("$OPENSSL" x509 -inform DER -in "$certificate" -noout -fingerprint -sha256 | python3 -c '
 import re

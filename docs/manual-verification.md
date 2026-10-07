@@ -3,7 +3,7 @@
 Run this checklist against the development bundle built and installed with:
 
 ```text
-make verify-app CONFIGURATION=debug BUILD_DIR=/tmp/drift-bundles/dev CODESIGN_IDENTITY=Drift
+make verify-app CONFIGURATION=debug BUILD_DIR=/tmp/drift-bundles/dev
 ~/Applications/Drift Dev.app
 com.woosublee.drift.dev
 ```

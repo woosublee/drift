@@ -19,9 +19,20 @@ final class ReleaseWorkflowTests: XCTestCase {
     func testWorkflowUsesCanonicalSecretsSharedScriptsAndImmutableManualPublishGate() throws {
         let workflow = try sourceWorkflow()
 
-        for secret in ["DRIFT_CERTIFICATE_BASE64", "DRIFT_CERTIFICATE_PASSWORD", "SPARKLE_PRIVATE_KEY"] {
-            XCTAssertTrue(workflow.contains("secrets.\(secret)"))
+        for secret in [
+            "DEVELOPER_ID_CERTIFICATE_BASE64",
+            "DEVELOPER_ID_CERTIFICATE_PASSWORD",
+            "NOTARY_API_KEY_BASE64",
+            "NOTARY_API_KEY_ID",
+            "NOTARY_API_ISSUER_ID",
+            "SPARKLE_PRIVATE_KEY"
+        ] {
+            XCTAssertTrue(workflow.contains("secrets.\(secret)"), secret)
         }
+        XCTAssertFalse(workflow.contains("DRIFT_CERTIFICATE_"))
+        XCTAssertFalse(workflow.contains("CODESIGN_IDENTITY=Drift"))
+        XCTAssertTrue(workflow.contains("make check-signing-identity"))
+        XCTAssertTrue(workflow.contains("make check-notary-credentials"))
         XCTAssertTrue(workflow.contains("scripts/check-release-monotonic.sh"))
         XCTAssertTrue(workflow.contains("make verify-release-artifacts"))
         XCTAssertTrue(workflow.contains("scripts/publish-github-release.sh"))
@@ -117,7 +128,7 @@ final class ReleaseWorkflowTests: XCTestCase {
         XCTAssertTrue(workflow.contains("KEYCHAIN_PASSWORD=\"$(openssl rand -base64 32)\""))
         XCTAssertTrue(workflow.contains("::add-mask::$KEYCHAIN_PASSWORD"))
         XCTAssertTrue(workflow.contains("security delete-keychain"))
-        XCTAssertTrue(workflow.contains("rm -f \"$RUNNER_TEMP/drift-certificate.p12\""))
+        XCTAssertTrue(workflow.contains("rm -f \"$RUNNER_TEMP/drift-certificate.p12\" \"$RUNNER_TEMP/drift-notary-key.p8\""))
     }
 
     private func sourceWorkflow() throws -> String {

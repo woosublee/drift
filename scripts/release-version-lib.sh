@@ -1,5 +1,8 @@
 #!/bin/zsh
 
+RELEASE_TEAM_ID="2L6ZW98RCP"
+RELEASE_CODESIGN_IDENTITY="Developer ID Application: Woosub Lee ($RELEASE_TEAM_ID)"
+
 release_fail() {
     print -u2 -r -- "ERROR: $1"
     return 1
