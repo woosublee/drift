@@ -106,7 +106,10 @@ jobs:
           curl --fail --silent --show-error --location \
             https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
             --output "$RUNNER_TEMP/DeveloperIDG2CA.cer"
-          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH"
+          # Runner images may already trust this intermediate; only an existing copy is acceptable.
+          if ! import_output="$(security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH" 2>&1)"; then
+            [[ "$import_output" == *"already exists"* ]] || { print -u2 -r -- "$import_output"; exit 1; }
+          fi
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" $ORIGINAL_KEYCHAINS
           security default-keychain -d user -s "$KEYCHAIN_PATH"
